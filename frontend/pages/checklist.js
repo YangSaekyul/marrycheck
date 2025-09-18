@@ -1,4 +1,16 @@
-import { useEffect, useMemo, useState } from 'react'
+import ChecklistManager from '../components/ChecklistManager'
+
+export default function ChecklistPage() {
+  return (
+    <div className="min-h-screen bg-background">
+      <div className="container mx-auto py-6">
+        <ChecklistManager />
+      </div>
+    </div>
+  )
+}
+
+ChecklistPage.requiresAuth = true
 import { db, auth } from '../lib/firebaseClient'
 import {
   collection,
