@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -9,8 +9,21 @@ import { Progress } from "@/components/ui/progress"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { ArrowLeft, CheckCircle, Circle, Star, User, Heart, Camera, MessageSquare, Plus } from "lucide-react"
+import { ArrowLeft, CheckCircle, Circle, Star, User, Heart, Camera, MessageSquare, Plus, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useAuth } from "@/context/AuthContext"
+import { db } from "@/lib/firebase"
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+  doc,
+  serverTimestamp
+} from "firebase/firestore"
 
 interface ChecklistItem {
   id: string
@@ -23,80 +36,48 @@ interface ChecklistItem {
   notes?: string
   photos?: string[]
   dueDate?: string
+  ownerUid: string
+  createdAt?: any
+  updatedAt?: any
 }
-
-const mockChecklistItems: ChecklistItem[] = [
-  {
-    id: "1",
-    title: "예식장 예약",
-    category: "essential",
-    timeline: "6months",
-    priority: "high",
-    assignee: "both",
-    status: "completed",
-    notes: "드림웨딩홀로 결정, 12월 24일 오후 2시",
-    dueDate: "2024-06-01",
-  },
-  {
-    id: "2",
-    title: "웨딩드레스 선택",
-    category: "essential",
-    timeline: "3months",
-    priority: "high",
-    assignee: "bride",
-    status: "in-progress",
-    notes: "3곳 방문 예정",
-    dueDate: "2024-09-30",
-  },
-  {
-    id: "3",
-    title: "신랑 정장 준비",
-    category: "essential",
-    timeline: "3months",
-    priority: "high",
-    assignee: "groom",
-    status: "todo",
-    dueDate: "2024-09-30",
-  },
-  {
-    id: "4",
-    title: "웨딩 촬영 예약",
-    category: "essential",
-    timeline: "3months",
-    priority: "medium",
-    assignee: "both",
-    status: "todo",
-    dueDate: "2024-10-15",
-  },
-  {
-    id: "5",
-    title: "허니문 계획",
-    category: "optional",
-    timeline: "1month",
-    priority: "low",
-    assignee: "both",
-    status: "todo",
-    dueDate: "2024-11-20",
-  },
-  {
-    id: "6",
-    title: "신혼집 준비",
-    category: "optional",
-    timeline: "1month",
-    priority: "medium",
-    assignee: "both",
-    status: "todo",
-    dueDate: "2024-11-30",
-  },
-]
 
 export function ChecklistManager() {
   const router = useRouter()
-  const [items, setItems] = useState<ChecklistItem[]>(mockChecklistItems)
+  const { user } = useAuth()
+  const [items, setItems] = useState<ChecklistItem[]>([])
   const [selectedCategory, setSelectedCategory] = useState<"all" | "essential" | "optional">("all")
   const [selectedTimeline, setSelectedTimeline] = useState<"all" | "6months" | "3months" | "1month" | "1week">("all")
   const [selectedItem, setSelectedItem] = useState<ChecklistItem | null>(null)
   const [newItemTitle, setNewItemTitle] = useState("")
+  const [loading, setLoading] = useState(true)
+
+  // Firestore에서 실시간으로 데이터 가져오기
+  useEffect(() => {
+    if (!user?.uid) {
+      setItems([])
+      setLoading(false)
+      return
+    }
+
+    const q = query(
+      collection(db, "checklists"),
+      where("ownerUid", "==", user.uid)
+    )
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const checklistItems: ChecklistItem[] = []
+      querySnapshot.forEach((doc) => {
+        checklistItems.push({
+          id: doc.id,
+          ...doc.data()
+        } as ChecklistItem)
+      })
+      setItems(checklistItems)
+      setLoading(false)
+    })
+
+    return () => unsubscribe()
+  }, [user?.uid])
 
   const filteredItems = items.filter((item) => {
     const categoryMatch = selectedCategory === "all" || item.category === selectedCategory
@@ -108,31 +89,45 @@ export function ChecklistManager() {
   const totalItems = items.length
   const progressPercentage = (completedItems / totalItems) * 100
 
-  const toggleItemStatus = (itemId: string) => {
-    setItems(
-      items.map((item) => {
-        if (item.id === itemId) {
-          const newStatus = item.status === "completed" ? "todo" : item.status === "todo" ? "in-progress" : "completed"
-          return { ...item, status: newStatus }
-        }
-        return item
-      }),
-    )
+  const toggleItemStatus = async (itemId: string, currentStatus: ChecklistItem["status"]) => {
+    const newStatus = currentStatus === "completed" ? "todo" : currentStatus === "todo" ? "in-progress" : "completed"
+
+    try {
+      await updateDoc(doc(db, "checklists", itemId), {
+        status: newStatus,
+        updatedAt: serverTimestamp()
+      })
+    } catch (error) {
+      console.error("상태 업데이트 실패:", error)
+    }
   }
 
-  const addNewItem = () => {
-    if (newItemTitle.trim()) {
-      const newItem: ChecklistItem = {
-        id: Date.now().toString(),
+  const deleteItem = async (itemId: string) => {
+    try {
+      await deleteDoc(doc(db, "checklists", itemId))
+    } catch (error) {
+      console.error("항목 삭제 실패:", error)
+    }
+  }
+
+  const addNewItem = async () => {
+    if (!newItemTitle.trim() || !user?.uid) return
+
+    try {
+      await addDoc(collection(db, "checklists"), {
         title: newItemTitle,
         category: "optional",
         timeline: "1month",
         priority: "medium",
         assignee: "both",
         status: "todo",
-      }
-      setItems([...items, newItem])
+        ownerUid: user.uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      })
       setNewItemTitle("")
+    } catch (error) {
+      console.error("할 일 추가 실패:", error)
     }
   }
 
@@ -232,93 +227,115 @@ export function ChecklistManager() {
 
       {/* Checklist Items */}
       <div className="space-y-3">
-        {filteredItems.map((item) => (
-          <Card key={item.id} className={`transition-all ${item.status === "completed" ? "opacity-60" : ""}`}>
-            <CardContent className="p-4">
-              <div className="flex items-start space-x-3">
-                <button onClick={() => toggleItemStatus(item.id)} className="mt-0.5">
-                  {getStatusIcon(item.status)}
-                </button>
-
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-start justify-between">
-                    <h3
-                      className={`font-medium ${item.status === "completed" ? "line-through text-muted-foreground" : ""}`}
-                    >
-                      {item.title}
-                    </h3>
-                    <Dialog>
-                      <DialogTrigger asChild>
-                        <Button variant="ghost" size="sm" onClick={() => setSelectedItem(item)}>
-                          <MessageSquare className="w-4 h-4" />
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>{item.title}</DialogTitle>
-                        </DialogHeader>
-                        <div className="space-y-4">
-                          <div className="flex items-center space-x-2">
-                            {getAssigneeIcon(item.assignee)}
-                            <span className="text-sm">
-                              {item.assignee === "both" ? "함께" : item.assignee === "bride" ? "신부" : "신랑"}
-                            </span>
-                          </div>
-                          {item.dueDate && <p className="text-sm text-muted-foreground">마감일: {item.dueDate}</p>}
-                          {item.notes && (
-                            <div>
-                              <h4 className="text-sm font-medium mb-1">메모</h4>
-                              <p className="text-sm text-muted-foreground">{item.notes}</p>
-                            </div>
-                          )}
-                          <div className="space-y-2">
-                            <h4 className="text-sm font-medium">메모 추가</h4>
-                            <Textarea placeholder="메모를 입력하세요..." />
-                            <Button size="sm">
-                              <Camera className="w-4 h-4 mr-2" />
-                              사진 추가
-                            </Button>
-                          </div>
-                        </div>
-                      </DialogContent>
-                    </Dialog>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Badge variant={getPriorityColor(item.priority)} className="text-xs">
-                      {item.priority === "high" ? "긴급" : item.priority === "medium" ? "보통" : "낮음"}
-                    </Badge>
-
-                    <Badge variant="outline" className="text-xs">
-                      {item.category === "essential" ? "필수" : "선택"}
-                    </Badge>
-
-                    <div className="flex items-center space-x-1">
-                      {getAssigneeIcon(item.assignee)}
-                      <span className="text-xs text-muted-foreground">
-                        {item.assignee === "both" ? "함께" : item.assignee === "bride" ? "신부" : "신랑"}
-                      </span>
-                    </div>
-
-                    {item.priority === "high" && <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />}
-                  </div>
-
-                  {item.dueDate && <p className="text-xs text-muted-foreground">마감: {item.dueDate}</p>}
-                </div>
-              </div>
+        {loading ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <p className="text-muted-foreground">로딩 중...</p>
             </CardContent>
           </Card>
-        ))}
-      </div>
+        ) : !user ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <p className="text-muted-foreground">로그인이 필요합니다</p>
+            </CardContent>
+          </Card>
+        ) : filteredItems.length === 0 ? (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <CheckCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+              <p className="text-muted-foreground">할 일이 없습니다. 새로운 할 일을 추가해보세요!</p>
+            </CardContent>
+          </Card>
+        ) : (
+          filteredItems.map((item) => (
+            <Card key={item.id} className={`transition-all ${item.status === "completed" ? "opacity-60" : ""}`}>
+              <CardContent className="p-4">
+                <div className="flex items-start space-x-3">
+                  <button onClick={() => toggleItemStatus(item.id, item.status)} className="mt-0.5">
+                    {getStatusIcon(item.status)}
+                  </button>
 
-      {filteredItems.length === 0 && (
-        <Card>
-          <CardContent className="p-8 text-center">
-            <CheckCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">해당 조건의 할 일이 없습니다</p>
-          </CardContent>
-        </Card>
-      )}
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-start justify-between">
+                      <h3
+                        className={`font-medium ${item.status === "completed" ? "line-through text-muted-foreground" : ""}`}
+                      >
+                        {item.title}
+                      </h3>
+                      <div className="flex items-center space-x-1">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button variant="ghost" size="sm" onClick={() => setSelectedItem(item)}>
+                              <MessageSquare className="w-4 h-4" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>{item.title}</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4">
+                              <div className="flex items-center space-x-2">
+                                {getAssigneeIcon(item.assignee)}
+                                <span className="text-sm">
+                                  {item.assignee === "both" ? "함께" : item.assignee === "bride" ? "신부" : "신랑"}
+                                </span>
+                              </div>
+                              {item.dueDate && <p className="text-sm text-muted-foreground">마감일: {item.dueDate}</p>}
+                              {item.notes && (
+                                <div>
+                                  <h4 className="text-sm font-medium mb-1">메모</h4>
+                                  <p className="text-sm text-muted-foreground">{item.notes}</p>
+                                </div>
+                              )}
+                              <div className="space-y-2">
+                                <h4 className="text-sm font-medium">메모 추가</h4>
+                                <Textarea placeholder="메모를 입력하세요..." />
+                                <Button size="sm">
+                                  <Camera className="w-4 h-4 mr-2" />
+                                  사진 추가
+                                </Button>
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteItem(item.id)}
+                          className="text-destructive hover:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-2">
+                      <Badge variant={getPriorityColor(item.priority)} className="text-xs">
+                        {item.priority === "high" ? "긴급" : item.priority === "medium" ? "보통" : "낮음"}
+                      </Badge>
+
+                      <Badge variant="outline" className="text-xs">
+                        {item.category === "essential" ? "필수" : "선택"}
+                      </Badge>
+
+                      <div className="flex items-center space-x-1">
+                        {getAssigneeIcon(item.assignee)}
+                        <span className="text-xs text-muted-foreground">
+                          {item.assignee === "both" ? "함께" : item.assignee === "bride" ? "신부" : "신랑"}
+                        </span>
+                      </div>
+
+                      {item.priority === "high" && <Star className="w-3 h-3 text-yellow-500 fill-yellow-500" />}
+                    </div>
+
+                    {item.dueDate && <p className="text-xs text-muted-foreground">마감: {item.dueDate}</p>}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))
+        )}
+      </div>
     </div>
   )
 }
