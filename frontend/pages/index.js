@@ -15,9 +15,7 @@ export default function Dashboard() {
             <p className="text-3xl font-bold mt-2">₩0</p>
             <p className="text-sm text-gray-500 mt-1">이번 달 지출: ₩0</p>
             <div className="mt-4">
-              <Link href="/budget">
-                <a className="inline-block bg-indigo-600 text-white px-3 py-2 rounded">지출 관리로 이동</a>
-              </Link>
+              <Link href="/budget" className="inline-block bg-indigo-600 text-white px-3 py-2 rounded">지출 관리로 이동</Link>
             </div>
           </div>
 
@@ -31,14 +29,10 @@ export default function Dashboard() {
           <h3 className="text-md font-medium text-gray-700">빠른 액션</h3>
           <ul className="mt-3 space-y-2 text-sm">
             <li>
-              <Link href="/checklist">
-                <a className="text-indigo-600">체크리스트 보기</a>
-              </Link>
+              <Link href="/checklist" className="text-indigo-600">체크리스트 보기</Link>
             </li>
             <li>
-              <Link href="/invite">
-                <a className="text-indigo-600">초대 생성</a>
-              </Link>
+              <Link href="/invite" className="text-indigo-600">초대 생성</Link>
             </li>
           </ul>
         </aside>
