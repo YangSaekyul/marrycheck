@@ -9,7 +9,7 @@ import { Progress } from "@/components/ui/progress"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { ArrowLeft, CheckCircle, Circle, Star, User, Heart, Camera, MessageSquare, Plus, Trash2 } from "lucide-react"
+import { ArrowLeft, CheckCircle, Circle, Star, User, Heart, Camera, MessageSquare, Plus, Trash2, LogOut } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/context/AuthContext"
 import { db } from "@/lib/firebase"
@@ -22,8 +22,11 @@ import {
   updateDoc,
   deleteDoc,
   doc,
-  serverTimestamp
+  serverTimestamp,
+  orderBy
 } from "firebase/firestore"
+import { signOut } from "firebase/auth"
+import { auth } from "@/lib/firebase"
 
 interface ChecklistItem {
   id: string
@@ -50,6 +53,7 @@ export function ChecklistManager() {
   const [selectedItem, setSelectedItem] = useState<ChecklistItem | null>(null)
   const [newItemTitle, setNewItemTitle] = useState("")
   const [loading, setLoading] = useState(true)
+  const [noteText, setNoteText] = useState("")
 
   // Firestore에서 실시간으로 데이터 가져오기
   useEffect(() => {
@@ -61,7 +65,8 @@ export function ChecklistManager() {
 
     const q = query(
       collection(db, "checklists"),
-      where("ownerUid", "==", user.uid)
+      where("ownerUid", "==", user.uid),
+      orderBy("createdAt", "desc")
     )
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -87,7 +92,7 @@ export function ChecklistManager() {
 
   const completedItems = items.filter((item) => item.status === "completed").length
   const totalItems = items.length
-  const progressPercentage = (completedItems / totalItems) * 100
+  const progressPercentage = totalItems === 0 ? 0 : (completedItems / totalItems) * 100
 
   const toggleItemStatus = async (itemId: string, currentStatus: ChecklistItem["status"]) => {
     const newStatus = currentStatus === "completed" ? "todo" : currentStatus === "todo" ? "in-progress" : "completed"
@@ -107,6 +112,26 @@ export function ChecklistManager() {
       await deleteDoc(doc(db, "checklists", itemId))
     } catch (error) {
       console.error("항목 삭제 실패:", error)
+    }
+  }
+
+  const updateItemNotes = async (itemId: string, notes: string) => {
+    try {
+      await updateDoc(doc(db, "checklists", itemId), {
+        notes: notes,
+        updatedAt: serverTimestamp()
+      })
+    } catch (error) {
+      console.error("메모 업데이트 실패:", error)
+    }
+  }
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth)
+      router.push('/login')
+    } catch (error) {
+      console.error("로그아웃 실패:", error)
     }
   }
 
@@ -173,7 +198,10 @@ export function ChecklistManager() {
           뒤로
         </Button>
         <h1 className="text-xl font-bold">체크리스트</h1>
-        <div className="w-16"></div>
+        <Button variant="ghost" size="sm" onClick={handleLogout}>
+          <LogOut className="w-4 h-4 mr-2" />
+          로그아웃
+        </Button>
       </div>
 
       {/* Progress Overview */}
@@ -265,7 +293,10 @@ export function ChecklistManager() {
                       <div className="flex items-center space-x-1">
                         <Dialog>
                           <DialogTrigger asChild>
-                            <Button variant="ghost" size="sm" onClick={() => setSelectedItem(item)}>
+                            <Button variant="ghost" size="sm" onClick={() => {
+                              setSelectedItem(item)
+                              setNoteText(item.notes || "")
+                            }}>
                               <MessageSquare className="w-4 h-4" />
                             </Button>
                           </DialogTrigger>
@@ -288,11 +319,21 @@ export function ChecklistManager() {
                                 </div>
                               )}
                               <div className="space-y-2">
-                                <h4 className="text-sm font-medium">메모 추가</h4>
-                                <Textarea placeholder="메모를 입력하세요..." />
-                                <Button size="sm">
-                                  <Camera className="w-4 h-4 mr-2" />
-                                  사진 추가
+                                <h4 className="text-sm font-medium">메모 편집</h4>
+                                <Textarea
+                                  placeholder="메모를 입력하세요..."
+                                  value={noteText}
+                                  onChange={(e) => setNoteText(e.target.value)}
+                                />
+                                <Button
+                                  size="sm"
+                                  onClick={() => {
+                                    updateItemNotes(item.id, noteText)
+                                    setSelectedItem(null)
+                                    setNoteText("")
+                                  }}
+                                >
+                                  메모 저장
                                 </Button>
                               </div>
                             </div>
