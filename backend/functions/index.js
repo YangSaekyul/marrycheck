@@ -1,5 +1,6 @@
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
+const cors = require('cors');
 
 admin.initializeApp();
 
@@ -61,92 +62,105 @@ exports.login = functions.https.onRequest((req, res) => {
  *    설정 예시:
  *      firebase functions:config:set kakao.rest_key="YOUR_REST_KEY" kakao.redirect_uri="https://yourdomain/auth/kakao/callback"
  */
-exports.kakaoLogin = functions.https.onRequest(async (req, res) => {
-  if (req.method !== 'POST') {
-    return res.status(405).send({ success: false, message: 'Method Not Allowed' });
-  }
+exports.kakaoLogin = functions.https.onRequest((req, res) => {
+  // CORS 설정: 로컬 개발과 프로덕션 도메인을 허용
+  const corsOptions = {
+    origin: [
+      'http://localhost:3000',  // 로컬 개발
+      'http://localhost:3001',  // 로컬 개발 (포트 변경 시)
+      'https://marry-check.vercel.app'  // 프로덕션
+    ],
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  };
 
-  try {
-    const { code, redirectUri: providedRedirect } = req.body || {}
-    if (!code) {
-      return res.status(400).send({ success: false, message: 'Missing code in request body' })
+  cors(corsOptions)(req, res, async () => {
+    if (req.method !== 'POST') {
+      return res.status(405).send({ success: false, message: 'Method Not Allowed' });
     }
 
-    // REST key: prefer functions config, fallback to env var for local dev
-    const functionsConfig = functions.config && functions.config().kakao ? functions.config().kakao : {}
-    const KAKAO_REST_KEY = functionsConfig.rest_key || process.env.KAKAO_REST_KEY
-    const REGISTERED_REDIRECT = functionsConfig.redirect_uri || process.env.KAKAO_REDIRECT_URI || null
-
-    if (!KAKAO_REST_KEY) {
-      return res.status(500).send({ success: false, message: 'Kakao REST key not configured on Functions config or env' })
-    }
-
-    // Determine redirect URI to send to token endpoint. Must match the one used to obtain the code.
-    const redirectUri = providedRedirect || REGISTERED_REDIRECT
-    if (!redirectUri) {
-      return res.status(400).send({ success: false, message: 'redirectUri is required (provide in request or set kakao.redirect_uri in functions config)'
-      })
-    }
-
-    // Exchange code for access token
-    const tokenRes = await fetch('https://kauth.kakao.com/oauth/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'authorization_code',
-        client_id: KAKAO_REST_KEY,
-        redirect_uri: redirectUri,
-        code: code
-      })
-    })
-
-    const tokenJson = await tokenRes.json()
-    if (!tokenRes.ok) {
-      return res.status(400).send({ success: false, message: 'Failed to get token from Kakao', detail: tokenJson })
-    }
-
-    const accessToken = tokenJson.access_token
-    if (!accessToken) {
-      return res.status(400).send({ success: false, message: 'No access_token in Kakao response', detail: tokenJson })
-    }
-
-    // Fetch user info from Kakao
-    const userRes = await fetch('https://kapi.kakao.com/v2/user/me', {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
-    })
-    const userJson = await userRes.json()
-    if (!userRes.ok) {
-      return res.status(400).send({ success: false, message: 'Failed to get user info from Kakao', detail: userJson })
-    }
-
-    const kakaoId = userJson && userJson.id
-    if (!kakaoId) {
-      return res.status(400).send({ success: false, message: 'Kakao user id not found', detail: userJson })
-    }
-
-    const uid = `kakao:${kakaoId}`
-
-    // Check if user exists in Firebase Auth; if not, create
-    let firebaseUser
     try {
-      firebaseUser = await admin.auth().getUser(uid)
-    } catch (err) {
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/user-not-found') {
-        // Create new user with uid
-        const displayName = (userJson.kakao_account && userJson.kakao_account.profile && userJson.kakao_account.profile.nickname) || undefined
-        firebaseUser = await admin.auth().createUser({ uid, displayName })
-      } else {
-        throw err
+      const { code, redirectUri: providedRedirect } = req.body || {}
+      if (!code) {
+        return res.status(400).send({ success: false, message: 'Missing code in request body' })
       }
+
+      // REST key: prefer functions config, fallback to env var for local dev
+      const functionsConfig = functions.config && functions.config().kakao ? functions.config().kakao : {}
+      const KAKAO_REST_KEY = functionsConfig.rest_key || process.env.KAKAO_REST_KEY
+      const REGISTERED_REDIRECT = functionsConfig.redirect_uri || process.env.KAKAO_REDIRECT_URI || null
+
+      if (!KAKAO_REST_KEY) {
+        return res.status(500).send({ success: false, message: 'Kakao REST key not configured on Functions config or env' })
+      }
+
+      // Determine redirect URI to send to token endpoint. Must match the one used to obtain the code.
+      const redirectUri = providedRedirect || REGISTERED_REDIRECT
+      if (!redirectUri) {
+        return res.status(400).send({ success: false, message: 'redirectUri is required (provide in request or set kakao.redirect_uri in functions config)'
+        })
+      }
+
+      // Exchange code for access token
+      const tokenRes = await fetch('https://kauth.kakao.com/oauth/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          client_id: KAKAO_REST_KEY,
+          redirect_uri: redirectUri,
+          code: code
+        })
+      })
+
+      const tokenJson = await tokenRes.json()
+      if (!tokenRes.ok) {
+        return res.status(400).send({ success: false, message: 'Failed to get token from Kakao', detail: tokenJson })
+      }
+
+      const accessToken = tokenJson.access_token
+      if (!accessToken) {
+        return res.status(400).send({ success: false, message: 'No access_token in Kakao response', detail: tokenJson })
+      }
+
+      // Fetch user info from Kakao
+      const userRes = await fetch('https://kapi.kakao.com/v2/user/me', {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
+      })
+      const userJson = await userRes.json()
+      if (!userRes.ok) {
+        return res.status(400).send({ success: false, message: 'Failed to get user info from Kakao', detail: userJson })
+      }
+
+      const kakaoId = userJson && userJson.id
+      if (!kakaoId) {
+        return res.status(400).send({ success: false, message: 'Kakao user id not found', detail: userJson })
+      }
+
+      const uid = `kakao:${kakaoId}`
+
+      // Check if user exists in Firebase Auth; if not, create
+      let firebaseUser
+      try {
+        firebaseUser = await admin.auth().getUser(uid)
+      } catch (err) {
+        if (err.code === 'auth/user-not-found' || err.code === 'auth/user-not-found') {
+          // Create new user with uid
+          const displayName = (userJson.kakao_account && userJson.kakao_account.profile && userJson.kakao_account.profile.nickname) || undefined
+          firebaseUser = await admin.auth().createUser({ uid, displayName })
+        } else {
+          throw err
+        }
+      }
+
+      // Create custom token for the user
+      const customToken = await admin.auth().createCustomToken(uid)
+
+      return res.status(200).send({ success: true, token: customToken })
+    } catch (error) {
+      console.error('kakaoLogin error', error)
+      return res.status(500).send({ success: false, message: 'Internal Server Error', detail: error.message || error })
     }
-
-    // Create custom token for the user
-    const customToken = await admin.auth().createCustomToken(uid)
-
-    return res.status(200).send({ success: true, token: customToken })
-  } catch (error) {
-    console.error('kakaoLogin error', error)
-    return res.status(500).send({ success: false, message: 'Internal Server Error', detail: error.message || error })
-  }
-})
+  });
+});
