@@ -1,44 +1,83 @@
-import Link from 'next/link'
+import React from 'react'
 
-export default function Dashboard() {
+export default function Home() {
+  // 샘플 데이터 (나중에 DB에서 가져올 예정)
+  const coupleName = "민수 & 지은";
+  const weddingDate = "2025년 5월 15일";
+  const dDay = "239";
+  const progress = 68;
+  const budget = {
+    remaining: "640만원",
+    lastActivity: "드레스샵 잔금 결제"
+  };
+  const todos = {
+    remaining: 3
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <header className="max-w-4xl mx-auto mb-6">
-        <h1 className="text-3xl font-bold text-gray-800">대시보드</h1>
-        <p className="text-gray-600 mt-1">오늘의 요약과 최근 활동을 확인하세요.</p>
-      </header>
+    <div className="space-y-12">
+      {/* Section 1: Couple Profile & D-Day */}
+      <section className="text-center">
+        <h2 className="text-3xl font-bold text-gray-800">{coupleName}</h2>
+        <p className="text-gray-500 mt-1">{weddingDate}</p>
+      </section>
 
-      <main className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="col-span-2 grid grid-cols-1 gap-4">
-          <div className="bg-white rounded-lg shadow p-4">
-            <h2 className="text-lg font-medium text-gray-700">예산 요약</h2>
-            <p className="text-3xl font-bold mt-2">₩0</p>
-            <p className="text-sm text-gray-500 mt-1">이번 달 지출: ₩0</p>
-            <div className="mt-4">
-              <Link href="/budget" className="inline-block bg-indigo-600 text-white px-3 py-2 rounded">지출 관리로 이동</Link>
-            </div>
+      {/* Section 2: Progress */}
+      <section className="px-4 sm:px-0">
+        <div className="flex flex-col gap-3">
+          <p className="text-center font-medium">{dDay}일 남았습니다</p>
+          <div className="h-3 rounded-full bg-pink-100 overflow-hidden">
+            <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }}></div>
           </div>
+          <p className="text-sm text-center text-gray-500">{progress}% 완료</p>
+        </div>
+      </section>
 
-          <div className="bg-white rounded-lg shadow p-4">
-            <h2 className="text-lg font-medium text-gray-700">최근 체크리스트 활동</h2>
-            <p className="text-sm text-gray-500 mt-2">아직 활동이 없습니다.</p>
+      {/* Section 3: Quick Actions */}
+      <section>
+        <h3 className="text-2xl font-bold px-4 sm:px-0 mb-6">바로가기</h3>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white/80 rounded-xl p-6 shadow-sm">
+            <h4 className="text-lg font-bold">오늘의 할 일</h4>
+            <p className="text-gray-500 text-sm mt-1">{todos.remaining}개 남음</p>
+          </div>
+          <div className="bg-white/80 rounded-xl p-6 shadow-sm">
+            <h4 className="text-lg font-bold">예산 현황</h4>
+            <p className="text-gray-500 text-sm mt-1">잔액: {budget.remaining}</p>
+          </div>
+          <div className="bg-white/80 rounded-xl p-6 shadow-sm">
+            <h4 className="text-lg font-bold">최근 활동</h4>
+            <p className="text-gray-500 text-sm mt-1">{budget.lastActivity}</p>
           </div>
         </div>
+      </section>
 
-        <aside className="bg-white rounded-lg shadow p-4">
-          <h3 className="text-md font-medium text-gray-700">빠른 액션</h3>
-          <ul className="mt-3 space-y-2 text-sm">
-            <li>
-              <Link href="/checklist" className="text-indigo-600">체크리스트 보기</Link>
-            </li>
-            <li>
-              <Link href="/invite" className="text-indigo-600">초대 생성</Link>
-            </li>
-          </ul>
-        </aside>
-      </main>
+      {/* Section 4: Main Navigation */}
+      <section>
+        <h3 className="text-2xl font-bold px-4 sm:px-0 mb-6">관리하기</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <a className="group bg-white/80 rounded-xl p-6 flex items-center gap-6 shadow-sm" href="#">
+            <div className="bg-primary/10 text-primary p-4 rounded-lg">
+              <span className="material-symbols-outlined text-4xl">checklist</span>
+            </div>
+            <div>
+              <h4 className="text-lg font-bold">체크리스트</h4>
+              <p className="text-gray-500 text-sm mt-1">결혼 준비 할 일을 관리하세요</p>
+            </div>
+          </a>
+          <a className="group bg-white/80 rounded-xl p-6 flex items-center gap-6 shadow-sm" href="#">
+            <div className="bg-primary/10 text-primary p-4 rounded-lg">
+              <span className="material-symbols-outlined text-4xl">payments</span>
+            </div>
+            <div>
+              <h4 className="text-lg font-bold">예산</h4>
+              <p className="text-gray-500 text-sm mt-1">지출 내역을 추적하세요</p>
+            </div>
+          </a>
+        </div>
+      </section>
     </div>
   )
 }
 
-Dashboard.requiresAuth = true
+Home.requiresAuth = true; // 로그인 필요 페이지로 설정
