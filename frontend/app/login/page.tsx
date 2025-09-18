@@ -4,6 +4,11 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signInWithEmailAndPassword, signInAnonymously } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Heart } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -42,44 +47,76 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-6">
-        <h1 className="text-2xl font-bold text-center">Marry Check 로그인</h1>
+    <main className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-primary/5 via-background to-secondary/5">
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center space-y-4">
+          <div className="flex items-center justify-center space-x-2">
+            <Heart className="w-8 h-8 text-primary fill-primary" />
+            <CardTitle className="text-2xl">Marry Check</CardTitle>
+          </div>
+          <p className="text-sm text-muted-foreground">결혼 준비를 함께 시작해보세요</p>
+        </CardHeader>
 
-        <button
-          onClick={onKakaoLogin}
-          className="w-full py-3 bg-yellow-400 rounded-md font-semibold"
-        >
-          카카오로 로그인
-        </button>
+        <CardContent className="space-y-6">
+          <Button
+            onClick={onKakaoLogin}
+            className="w-full py-3 bg-yellow-400 hover:bg-yellow-500 text-black font-semibold rounded-md"
+            size="lg"
+          >
+            카카오로 로그인
+          </Button>
 
-        <form onSubmit={onEmailLogin} className="space-y-3">
-          <input
-            className="w-full p-3 border rounded"
-            placeholder="이메일"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          <input
-            className="w-full p-3 border rounded"
-            placeholder="비밀번호"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <button type="submit" className="w-full py-2 bg-primary text-white rounded">
-            이메일로 로그인
-          </button>
-        </form>
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">또는</span>
+            </div>
+          </div>
 
-        <div className="text-center">
-          <button onClick={onDevLogin} className="text-sm text-muted-foreground underline">
-            개발용 로그인(익명)
-          </button>
-        </div>
+          <form onSubmit={onEmailLogin} className="space-y-4">
+            <div className="space-y-2">
+              <Input
+                placeholder="이메일"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                type="email"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Input
+                placeholder="비밀번호"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            <Button type="submit" className="w-full" size="lg">
+              이메일로 로그인
+            </Button>
+          </form>
 
-        {error && <p className="text-sm text-destructive">{error}</p>}
-      </div>
+          <div className="text-center">
+            <Button
+              onClick={onDevLogin}
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              개발용 로그인(익명)
+            </Button>
+          </div>
+
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+      </Card>
     </main>
   )
 }
