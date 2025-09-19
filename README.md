@@ -70,3 +70,4 @@ src/
 ## 라이선스
 
 MIT License# marrycheck
+# marrycheck
