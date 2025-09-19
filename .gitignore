@@ -1,0 +1,8 @@
+# 기본적으로 제외할 파일/폴더
+node_modules/
+.next/
+.DS_Store
+.env
+.vscode/
+/Users/yang/
+reference/

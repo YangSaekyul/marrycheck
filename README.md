@@ -9,21 +9,25 @@ Marry Check는 예비부부를 위한 디지털 sanctuary(안식처)입니다. �
 ## 주요 기능
 
 ### 1. 스마트 대시보드 (The Control Tower)
+
 - D-Day 카운터 및 커플 프로필
 - 통합 진행률 표시
 - 오늘의 브리핑
 
 ### 2. 투게더 체크리스트 (The Shared Journey)
+
 - 실시간 동기화
 - 담당자 지정 (신부/신랑/함께)
 - 스마트 템플릿
 
 ### 3. 스마트 예산 관리 (The Smart Wallet)
+
 - 커플 공유 가계부
 - 예산 리포트
 - 카테고리별 현황
 
 ### 4. 타임라인 스토리 (The Memory Lane)
+
 - 자동 기록
 - 감성 체크인
 - 디지털 앨범
@@ -70,4 +74,5 @@ src/
 ## 라이선스
 
 MIT License# marrycheck
+
 # marrycheck
