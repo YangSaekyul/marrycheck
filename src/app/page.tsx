@@ -3,7 +3,7 @@
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
-import { ChevronRight, CalendarHeart, CheckCircle2, Wallet, ImageIcon } from 'lucide-react'
+import { ChevronRight, CalendarHeart, CheckCircle2, Wallet, ImageIcon, Settings } from 'lucide-react'
 import Link from 'next/link'
 
 export default function Home() {
@@ -40,9 +40,14 @@ export default function Home() {
             </h1>
             <p className="text-sm font-medium text-pink-600 mt-1">우리 결혼하는 날 D-120</p>
           </div>
-          <button onClick={logout} className="text-xs text-gray-400 font-medium hover:text-gray-600">
-            로그아웃
-          </button>
+          <div className="flex flex-col items-end space-y-2">
+            <Link href="/profile" className="p-2 bg-white/50 hover:bg-white/80 rounded-full transition-colors">
+              <Settings size={20} className="text-gray-600" />
+            </Link>
+            <button onClick={logout} className="text-xs text-gray-400 font-medium hover:text-gray-600">
+              로그아웃
+            </button>
+          </div>
         </div>
 
         {/* Progress Card */}
