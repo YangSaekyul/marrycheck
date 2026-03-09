@@ -3,15 +3,13 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
+import { MessageCircle } from 'lucide-react'
 
 export default function LoginForm() {
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [rememberEmail, setRememberEmail] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const { user, signIn, signUp } = useAuth()
+  const { user, signInWithKakao } = useAuth()
   const router = useRouter()
 
   // 로그인 성공 시 메인 화면으로 리다이렉트
@@ -21,125 +19,55 @@ export default function LoginForm() {
     }
   }, [user, router])
 
-  // 아이디 저장 기능
-  useEffect(() => {
-    const savedEmail = localStorage.getItem('marrycheck_email')
-    if (savedEmail) {
-      setEmail(savedEmail)
-      setRememberEmail(true)
-    }
-  }, [])
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleKakaoLogin = async () => {
     setError('')
     setLoading(true)
 
     try {
-      // 먼저 로그인 시도
-      await signIn(email, password)
-
-      // 아이디 저장
-      if (rememberEmail) {
-        localStorage.setItem('marrycheck_email', email)
-      } else {
-        localStorage.removeItem('marrycheck_email')
-      }
+      await signInWithKakao()
+      // OAuth 리다이렉트가 발생하므로, 이하 코드는 사실상 도달하지 않음
     } catch (error: any) {
-      // 로그인 실패 시 회원가입 시도
-      if (error.code === 'auth/user-not-found') {
-        try {
-          await signUp(email, password)
-
-          // 아이디 저장
-          if (rememberEmail) {
-            localStorage.setItem('marrycheck_email', email)
-          } else {
-            localStorage.removeItem('marrycheck_email')
-          }
-        } catch (signUpError: any) {
-          setError(signUpError.message || '회원가입에 실패했습니다')
-        }
-      } else {
-        setError(error.message || '로그인에 실패했습니다')
-      }
-    } finally {
+      setError(error.message || '카카오 로그인에 실패했습니다')
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 flex items-center justify-center px-4">
-      <div className="max-w-md w-full">
-        <div className="bg-white/80 backdrop-blur-sm rounded-3xl p-8 shadow-xl border border-white/20">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Marry Check</h1>
-            <p className="text-gray-600">결혼 준비의 모든 순간이 소중한 추억이 되도록</p>
+    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 flex flex-col items-center justify-center px-6">
+      <div className="max-w-md w-full flex flex-col items-center">
+        
+        {/* App Logo & Title */}
+        <div className="text-center mb-12">
+          <div className="w-20 h-20 bg-gradient-to-tr from-pink-400 to-purple-500 rounded-3xl mx-auto mb-6 shadow-lg flex items-center justify-center transform rotate-3">
+             <span className="text-4xl">💍</span>
           </div>
+          <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-600 to-purple-600 mb-3 tracking-tight">
+            Marry Check
+          </h1>
+          <p className="text-gray-500 font-medium">우리의 결혼 준비를 하나의 공간에서</p>
+        </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                이메일
-              </label>
-              <input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-colors"
-                placeholder="your@email.com"
-              />
+        {/* Login Form Box */}
+        <div className="w-full bg-white/80 backdrop-blur-md rounded-[2rem] p-8 shadow-xl shadow-pink-100/50 border border-white">
+          
+          {error && (
+            <div className="bg-red-50 border border-red-100 text-red-600 px-4 py-3 rounded-2xl text-sm mb-6 text-center font-medium">
+              {error}
             </div>
+          )}
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
-                비밀번호
-              </label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-colors"
-                placeholder="비밀번호를 입력하세요"
-              />
-            </div>
-
-            <div className="flex items-center">
-              <input
-                id="remember"
-                type="checkbox"
-                checked={rememberEmail}
-                onChange={(e) => setRememberEmail(e.target.checked)}
-                className="h-4 w-4 text-pink-600 focus:ring-pink-500 border-gray-300 rounded"
-              />
-              <label htmlFor="remember" className="ml-2 block text-sm text-gray-700">
-                이메일 저장
-              </label>
-            </div>
-
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl text-sm">
-                {error}
-              </div>
-            )}
-
+          <div className="space-y-4">
             <button
-              type="submit"
+              onClick={handleKakaoLogin}
               disabled={loading}
-              className="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white py-3 px-4 rounded-xl font-medium hover:shadow-lg transform hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full flex items-center justify-center space-x-3 bg-[#FEE500] hover:bg-[#FDD800] text-[#000000] py-4 px-6 rounded-2xl font-bold shadow-sm transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? '처리 중...' : '로그인'}
+              <MessageCircle size={22} className="fill-current" />
+              <span className="text-[17px]">카카오톡으로 3초 만에 시작하기</span>
             </button>
-          </form>
-
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <div className="text-center text-sm text-gray-500">
-              <p>계속 진행하면 이용약관에 동의하는 것으로 간주됩니다.</p>
-            </div>
+            <p className="text-xs text-center text-gray-400 mt-4 leading-relaxed">
+              가입 시 Marry Check의 이용약관 및 <br/> 개인정보 처리방침에 동의하게 됩니다.
+            </p>
           </div>
         </div>
       </div>

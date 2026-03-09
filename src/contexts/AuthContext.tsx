@@ -1,15 +1,8 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-// import { User, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth'
-// import { doc, setDoc, getDoc } from 'firebase/firestore'
-// import { auth, db } from '@/lib/firebase'
-
-// Firebase의 User 타입을 대체할 임시 Mock 타입
-interface MockUser {
-  uid: string
-  email: string | null
-}
+import { createClient } from '@/utils/supabase/client'
+import { User } from '@supabase/supabase-js'
 
 interface UserProfile {
   email: string
@@ -20,11 +13,10 @@ interface UserProfile {
 }
 
 interface AuthContextType {
-  user: MockUser | null
+  user: User | null
   userProfile: UserProfile | null
   loading: boolean
-  signIn: (email: string, password: string) => Promise<void>
-  signUp: (email: string, password: string) => Promise<void>
+  signInWithKakao: () => Promise<void>
   logout: () => Promise<void>
   updateProfile: (profile: Partial<UserProfile>) => Promise<void>
 }
@@ -43,121 +35,118 @@ interface AuthProviderProps {
   children: ReactNode
 }
 
-// --- MOCK 구현 ---
-// 백엔드를 임시로 제거하고 로컬 상태로만 돌아가도록 조작된 Provider입니다.
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<MockUser | null>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const supabase = createClient()
 
-  // 앱 로드 시 로컬 스토리지에 저장된 값이 있는지 확인 (자동 로그인 흉내)
   useEffect(() => {
-    const checkLoginInfo = async () => {
-      setLoading(true)
-      await new Promise((resolve) => setTimeout(resolve, 800)) // 초기 로딩 깜빡임 모사
-
-      const savedEmail = localStorage.getItem('marrycheck_mock_email')
-      const savedProfile = localStorage.getItem('marrycheck_mock_profile')
-
-      if (savedEmail) {
-        setUser({ uid: 'mock_uid_123', email: savedEmail })
-        if (savedProfile) {
-          setUserProfile(JSON.parse(savedProfile))
+    // 1. 초기 세션 확인
+    const checkSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        const currentUser = session?.user ?? null
+        setUser(currentUser)
+        
+        // 유저 정보가 있다면 프로필(메타데이터) 처리
+        if (currentUser) {
+           const profile: UserProfile = {
+             email: currentUser.email || '',
+             gender: currentUser.user_metadata?.gender || 'female',
+             createdAt: new Date(currentUser.created_at),
+             updatedAt: new Date(currentUser.updated_at || currentUser.created_at),
+           }
+           setUserProfile(profile)
         } else {
-          const defaultProfile = {
-            email: savedEmail,
-            gender: 'female', // 홈화면을 바로 볼 수 있도록 기본값 셋팅
-            age: 28,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }
-          setUserProfile(defaultProfile)
-          localStorage.setItem('marrycheck_mock_profile', JSON.stringify(defaultProfile))
+           setUserProfile(null)
         }
-      } else {
-        setUser(null)
-        setUserProfile(null)
+
+      } catch (error) {
+        console.error('Error checking session:', error)
+      } finally {
+        setLoading(false)
       }
+    }
+
+    checkSession()
+
+    // 2. 세션 변경 사항 실시간 감지
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        const currentUser = session?.user ?? null
+        setUser(currentUser)
+        
+        if (currentUser) {
+           const profile: UserProfile = {
+             email: currentUser.email || '',
+             gender: currentUser.user_metadata?.gender || 'female',
+             createdAt: new Date(currentUser.created_at),
+             updatedAt: new Date(currentUser.updated_at || currentUser.created_at),
+           }
+           setUserProfile(profile)
+        } else {
+           setUserProfile(null)
+        }
+        setLoading(false)
+      }
+    )
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [supabase])
+
+  const signInWithKakao = async () => {
+    try {
+      setLoading(true)
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'kakao',
+        options: {
+          // 환경에 맞춰 콜백 URL 자동 설정 (현재창 리다이렉트)
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+      if (error) throw error
+    } catch (error: any) {
+      console.error('Kakao login error:', error.message)
       setLoading(false)
+      throw error
     }
-
-    checkLoginInfo()
-  }, [])
-
-  const signIn = async (email: string, password: string) => {
-    // 1초간 서버와 통신하는 척 딜레이 구성
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-
-    if (password === 'fail') {
-        // 일부러 비밀번호를 fail 입력시 에러 뿜뿜 확인용 (auth/user-not-found 코드 전달해 회원가입유도)
-        const error: any = new Error("가입되지 않은 이메일입니다.")
-        error.code = 'auth/user-not-found'
-        throw error
-    }
-
-    // 성공 처리
-    localStorage.setItem('marrycheck_mock_email', email)
-    setUser({ uid: 'mock_uid_123', email })
-    
-    // 이전에 저장된 프로필이 없다면 생성
-    const savedProfile = localStorage.getItem('marrycheck_mock_profile')
-    if (savedProfile) {
-      setUserProfile(JSON.parse(savedProfile))
-    } else {
-      const newProfile = {
-        email,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }
-      setUserProfile(newProfile)
-      localStorage.setItem('marrycheck_mock_profile', JSON.stringify(newProfile))
-    }
-  }
-
-  const signUp = async (email: string, password: string) => {
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    
-    // 회원가입 직후 바로 로그인 처리
-    localStorage.setItem('marrycheck_mock_email', email)
-    setUser({ uid: 'mock_uid_123', email })
-
-    const newProfile = {
-      email,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    }
-    setUserProfile(newProfile)
-    localStorage.setItem('marrycheck_mock_profile', JSON.stringify(newProfile))
   }
 
   const logout = async () => {
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    localStorage.removeItem('marrycheck_mock_email')
-    // localStorage.removeItem('marrycheck_mock_profile') // 프로필은 임시로 냅둠 (원하면 지워도 됨)
-    setUser(null)
-    setUserProfile(null)
+    try {
+      setLoading(true)
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+    } catch (error: any) {
+      console.error('Logout error:', error.message)
+      setLoading(false)
+    }
   }
 
   const updateProfile = async (profileUpdate: Partial<UserProfile>) => {
-    await new Promise((resolve) => setTimeout(resolve, 800))
     if (!user || !userProfile) return
+    
+    // Supabase User Metadata 업데이트
+    const { error } = await supabase.auth.updateUser({
+      data: profileUpdate
+    })
 
-    const updatedProfile = {
-      ...userProfile,
-      ...profileUpdate,
-      updatedAt: new Date(),
-    } as UserProfile
+    if (error) {
+      console.error('Profile update error:', error.message)
+      return
+    }
 
-    setUserProfile(updatedProfile)
-    localStorage.setItem('marrycheck_mock_profile', JSON.stringify(updatedProfile))
+    setUserProfile(prev => prev ? { ...prev, ...profileUpdate, updatedAt: new Date() } : null)
   }
 
   const value = {
     user,
     userProfile,
     loading,
-    signIn,
-    signUp,
+    signInWithKakao,
     logout,
     updateProfile,
   }
