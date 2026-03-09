@@ -22,6 +22,25 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <head>
+        {/* Polyfill: .at() for older Safari/iOS (< 15.4) — required by @supabase/ssr */}
+        <script dangerouslySetInnerHTML={{ __html: `
+          if (!Array.prototype.at) {
+            Array.prototype.at = function(n) {
+              n = Math.trunc(n) || 0;
+              if (n < 0) n += this.length;
+              if (n < 0 || n >= this.length) return undefined;
+              return this[n];
+            };
+          }
+          if (!String.prototype.at) {
+            String.prototype.at = function(n) {
+              n = Math.trunc(n) || 0;
+              if (n < 0) n += this.length;
+              if (n < 0 || n >= this.length) return undefined;
+              return this[n];
+            };
+          }
+        `}} />
         <Script src="https://cdn.jsdelivr.net/npm/eruda" strategy="beforeInteractive" />
         <Script id="eruda-init" strategy="beforeInteractive">
           {`if (typeof eruda !== "undefined") eruda.init();`}
