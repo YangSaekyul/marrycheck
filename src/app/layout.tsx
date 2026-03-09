@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
+import Script from 'next/script'
 import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { ModalProvider } from '@/contexts/ModalContext'
@@ -20,6 +21,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko">
+      <head>
+        <Script src="https://cdn.jsdelivr.net/npm/eruda" strategy="beforeInteractive" />
+        <Script id="eruda-init" strategy="beforeInteractive">
+          {`if (typeof eruda !== "undefined") eruda.init();`}
+        </Script>
+      </head>
       <body className={`${inter.className} bg-gray-50 text-gray-900`}>
         <script
           dangerouslySetInnerHTML={{
