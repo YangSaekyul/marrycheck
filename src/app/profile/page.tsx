@@ -43,6 +43,18 @@ export default function ProfileSetup() {
     }
   }, [userProfile])
 
+  // 매직 링크(URL)을 통해 접속한 경우 초대 코드 자동 세팅
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search)
+      const code = searchParams.get('inviteCode')
+      if (code && code.length === 6) {
+        setInputCode(code.toUpperCase())
+        setActiveTab('couple')
+      }
+    }
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -346,11 +358,12 @@ export default function ProfileSetup() {
                   )}
                </div>
                {myInviteCode && (
-                 <p className="text-xs text-pink-500 mt-2 font-medium cursor-pointer hover:underline" onClick={() => {
-                   navigator.clipboard.writeText(myInviteCode);
-                   showAlert('코드가 클립보드에 복사되었습니다!');
+                 <p className="text-xs text-pink-500 mt-2 font-medium cursor-pointer flex items-center justify-center gap-1 hover:text-pink-600" onClick={() => {
+                   const inviteLink = `${window.location.origin}/profile?inviteCode=${myInviteCode}`;
+                   navigator.clipboard.writeText(inviteLink);
+                   showAlert('초대 링크가 복사되었습니다!\n상대방에게 카카오톡으로 보내주세요.');
                  }}>
-                   복사하기 ✂️
+                   초대 링크 복사하기 🔗
                  </p>
                )}
                

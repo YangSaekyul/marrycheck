@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { createClient } from '@/utils/supabase/client'
 import { User } from '@supabase/supabase-js'
 import { parseSafeDate } from '@/utils/date'
+import { sendDiscordNotification } from '@/utils/discord'
 
 interface UserProfile {
   email: string
@@ -230,6 +231,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (dbError) {
        console.error('DB User update/upsert error:', dbError.message)
        throw new Error(dbError.message)
+    }
+
+    // 새 프로필 설정 시 디스코드 웹훅 알림 발송 (비동기 처리로 UI 중단 방지)
+    const newNickname = profileUpdate.nickname !== undefined ? profileUpdate.nickname : userProfile?.nickname;
+    const newGender = profileUpdate.gender !== undefined ? profileUpdate.gender : userProfile?.gender;
+    const newRole = profileUpdate.role !== undefined ? profileUpdate.role : userProfile?.role;
+    
+    if (newNickname) {
+      sendDiscordNotification({
+        email: user.email || '이메일 없음',
+        nickname: newNickname,
+        gender: newGender || '미상',
+        role: newRole || null
+      });
     }
 
     // 로컬 상태 동기화
