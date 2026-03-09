@@ -58,17 +58,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
         
         // 유저 정보가 있다면 프로필(메타데이터) 처리
         if (currentUser) {
+           // DB에서 최신 public.users 데이터 연동
+           const { data: dbUser } = await supabase.from('users').select('*').eq('id', currentUser.id).single()
+           
            const profile: UserProfile = {
              email: currentUser.email || '',
-             nickname: currentUser.user_metadata?.nickname || currentUser.user_metadata?.full_name || '',
-             profile_image: currentUser.user_metadata?.profile_image || currentUser.user_metadata?.avatar_url || '',
-             role: currentUser.user_metadata?.role || null,
-             couple_id: currentUser.user_metadata?.couple_id || null,
-             gender: currentUser.user_metadata?.gender || 'female',
-             birthdate: currentUser.user_metadata?.birthdate,
-             temp_partner_name: currentUser.user_metadata?.temp_partner_name,
+             nickname: dbUser?.nickname || currentUser.user_metadata?.nickname || currentUser.user_metadata?.full_name || '',
+             profile_image: dbUser?.profile_image || currentUser.user_metadata?.profile_image || currentUser.user_metadata?.avatar_url || '',
+             role: dbUser?.role || currentUser.user_metadata?.role || null,
+             couple_id: dbUser?.couple_id || currentUser.user_metadata?.couple_id || null,
+             gender: dbUser?.gender || currentUser.user_metadata?.gender || 'female',
+             birthdate: dbUser?.birthdate || currentUser.user_metadata?.birthdate,
+             temp_partner_name: dbUser?.temp_partner_name || currentUser.user_metadata?.temp_partner_name,
              createdAt: new Date(currentUser.created_at),
-             updatedAt: new Date(currentUser.updated_at || currentUser.created_at),
+             updatedAt: new Date(dbUser?.updated_at || currentUser.updated_at || currentUser.created_at),
            }
            setUserProfile(profile)
         } else {
@@ -86,22 +89,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // 2. 세션 변경 사항 실시간 감지
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      async (_event, session) => {
         const currentUser = session?.user ?? null
         setUser(currentUser)
         
         if (currentUser) {
+           const { data: dbUser } = await supabase.from('users').select('*').eq('id', currentUser.id).single()
+           
            const profile: UserProfile = {
              email: currentUser.email || '',
-             nickname: currentUser.user_metadata?.nickname || currentUser.user_metadata?.full_name || '',
-             profile_image: currentUser.user_metadata?.profile_image || currentUser.user_metadata?.avatar_url || '',
-             role: currentUser.user_metadata?.role || null,
-             couple_id: currentUser.user_metadata?.couple_id || null,
-             gender: currentUser.user_metadata?.gender || 'female',
-             birthdate: currentUser.user_metadata?.birthdate,
-             temp_partner_name: currentUser.user_metadata?.temp_partner_name,
+             nickname: dbUser?.nickname || currentUser.user_metadata?.nickname || currentUser.user_metadata?.full_name || '',
+             profile_image: dbUser?.profile_image || currentUser.user_metadata?.profile_image || currentUser.user_metadata?.avatar_url || '',
+             role: dbUser?.role || currentUser.user_metadata?.role || null,
+             couple_id: dbUser?.couple_id || currentUser.user_metadata?.couple_id || null,
+             gender: dbUser?.gender || currentUser.user_metadata?.gender || 'female',
+             birthdate: dbUser?.birthdate || currentUser.user_metadata?.birthdate,
+             temp_partner_name: dbUser?.temp_partner_name || currentUser.user_metadata?.temp_partner_name,
              createdAt: new Date(currentUser.created_at),
-             updatedAt: new Date(currentUser.updated_at || currentUser.created_at),
+             updatedAt: new Date(dbUser?.updated_at || currentUser.updated_at || currentUser.created_at),
            }
            setUserProfile(profile)
         } else {
