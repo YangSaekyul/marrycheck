@@ -70,7 +70,10 @@ export function ModalProvider({ children }: { children: ReactNode }) {
 
       {/* 모달 UI 레이어 */}
       {isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+        <div 
+          className="fixed inset-0 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200"
+          style={{ zIndex: 9999 }}
+        >
           <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
             
             <div className="px-6 py-6 pb-4">
