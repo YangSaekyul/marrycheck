@@ -74,11 +74,7 @@ export default function ChecklistPage() {
   // 3. 새로운 할 일 추가
   const handleAddTodo = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!userProfile?.couple_id) {
-       alert('🔒 파트너와 초대 코드로 연결한 뒤 사용할 수 있어요!')
-       return
-    }
-    if (!newTitle.trim()) return
+    if (!userProfile?.couple_id || !newTitle.trim()) return
 
     const insertData: any = {
         title: newTitle,

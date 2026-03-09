@@ -83,10 +83,8 @@ export default function BudgetPage() {
   // 총 예산 수정 제출
   const handleUpdateBudget = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!userProfile?.couple_id) {
-      alert('커플 연동이 필요합니다.')
-      return
-    }
+    if (!userProfile?.couple_id) return
+
     const newBudget = parseInt(newBudgetStr.replace(/,/g, ''), 10)
     if (isNaN(newBudget) || newBudget <= 0) {
       alert('숫자로 된 올바른 총 예산 금액을 입력하세요.')
@@ -112,11 +110,7 @@ export default function BudgetPage() {
   // 지출 내역 추가
   const handleAddTransaction = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!userProfile?.couple_id) {
-      alert('🔒 파트너와 초대 코드로 연결한 뒤 사용할 수 있어요!')
-      return
-    }
-    if (!newTitle.trim() || !newAmount) return
+    if (!userProfile?.couple_id || !newTitle.trim() || !newAmount) return
 
     const amountNum = parseInt(newAmount.replace(/,/g, ''), 10)
     if (isNaN(amountNum) || amountNum <= 0) {
