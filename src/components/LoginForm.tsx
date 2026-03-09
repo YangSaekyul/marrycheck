@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useRouter } from 'next/navigation'
 
 export default function LoginForm() {
   const [email, setEmail] = useState('')
@@ -10,7 +11,15 @@ export default function LoginForm() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const { signIn, signUp } = useAuth()
+  const { user, signIn, signUp } = useAuth()
+  const router = useRouter()
+
+  // 로그인 성공 시 메인 화면으로 리다이렉트
+  useEffect(() => {
+    if (user) {
+      router.push('/')
+    }
+  }, [user, router])
 
   // 아이디 저장 기능
   useEffect(() => {

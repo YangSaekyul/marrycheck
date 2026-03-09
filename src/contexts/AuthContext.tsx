@@ -1,9 +1,15 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { User, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth'
-import { doc, setDoc, getDoc } from 'firebase/firestore'
-import { auth, db } from '@/lib/firebase'
+// import { User, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth'
+// import { doc, setDoc, getDoc } from 'firebase/firestore'
+// import { auth, db } from '@/lib/firebase'
+
+// Firebase의 User 타입을 대체할 임시 Mock 타입
+interface MockUser {
+  uid: string
+  email: string | null
+}
 
 interface UserProfile {
   email: string
@@ -14,7 +20,7 @@ interface UserProfile {
 }
 
 interface AuthContextType {
-  user: User | null
+  user: MockUser | null
   userProfile: UserProfile | null
   loading: boolean
   signIn: (email: string, password: string) => Promise<void>
@@ -37,95 +43,113 @@ interface AuthProviderProps {
   children: ReactNode
 }
 
+// --- MOCK 구현 ---
+// 백엔드를 임시로 제거하고 로컬 상태로만 돌아가도록 조작된 Provider입니다.
 export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<MockUser | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // 앱 로드 시 로컬 스토리지에 저장된 값이 있는지 확인 (자동 로그인 흉내)
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user)
+    const checkLoginInfo = async () => {
+      setLoading(true)
+      await new Promise((resolve) => setTimeout(resolve, 800)) // 초기 로딩 깜빡임 모사
 
-      if (user) {
-        // 사용자 프로필 로드
-        try {
-          const userDoc = await getDoc(doc(db, 'users', user.uid))
-          if (userDoc.exists()) {
-            setUserProfile(userDoc.data() as UserProfile)
-          } else {
-            // 프로필이 없으면 기본 프로필 생성
-            const defaultProfile: UserProfile = {
-              email: user.email!,
-              createdAt: new Date(),
-              updatedAt: new Date(),
-            }
-            await setDoc(doc(db, 'users', user.uid), defaultProfile)
-            setUserProfile(defaultProfile)
+      const savedEmail = localStorage.getItem('marrycheck_mock_email')
+      const savedProfile = localStorage.getItem('marrycheck_mock_profile')
+
+      if (savedEmail) {
+        setUser({ uid: 'mock_uid_123', email: savedEmail })
+        if (savedProfile) {
+          setUserProfile(JSON.parse(savedProfile))
+        } else {
+          const defaultProfile = {
+            email: savedEmail,
+            gender: 'female', // 홈화면을 바로 볼 수 있도록 기본값 셋팅
+            age: 28,
+            createdAt: new Date(),
+            updatedAt: new Date(),
           }
-        } catch (error) {
-          console.error('프로필 로드 실패:', error)
+          setUserProfile(defaultProfile)
+          localStorage.setItem('marrycheck_mock_profile', JSON.stringify(defaultProfile))
         }
       } else {
+        setUser(null)
         setUserProfile(null)
       }
-
       setLoading(false)
-    })
+    }
 
-    return unsubscribe
+    checkLoginInfo()
   }, [])
 
   const signIn = async (email: string, password: string) => {
-    try {
-      await signInWithEmailAndPassword(auth, email, password)
-    } catch (error) {
-      throw error
+    // 1초간 서버와 통신하는 척 딜레이 구성
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+
+    if (password === 'fail') {
+        // 일부러 비밀번호를 fail 입력시 에러 뿜뿜 확인용 (auth/user-not-found 코드 전달해 회원가입유도)
+        const error: any = new Error("가입되지 않은 이메일입니다.")
+        error.code = 'auth/user-not-found'
+        throw error
+    }
+
+    // 성공 처리
+    localStorage.setItem('marrycheck_mock_email', email)
+    setUser({ uid: 'mock_uid_123', email })
+    
+    // 이전에 저장된 프로필이 없다면 생성
+    const savedProfile = localStorage.getItem('marrycheck_mock_profile')
+    if (savedProfile) {
+      setUserProfile(JSON.parse(savedProfile))
+    } else {
+      const newProfile = {
+        email,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+      setUserProfile(newProfile)
+      localStorage.setItem('marrycheck_mock_profile', JSON.stringify(newProfile))
     }
   }
 
   const signUp = async (email: string, password: string) => {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
-      const user = userCredential.user
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+    
+    // 회원가입 직후 바로 로그인 처리
+    localStorage.setItem('marrycheck_mock_email', email)
+    setUser({ uid: 'mock_uid_123', email })
 
-      // 새 사용자 프로필 생성
-      const newProfile: UserProfile = {
-        email: user.email!,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      }
-
-      await setDoc(doc(db, 'users', user.uid), newProfile)
-      setUserProfile(newProfile)
-    } catch (error) {
-      throw error
+    const newProfile = {
+      email,
+      createdAt: new Date(),
+      updatedAt: new Date(),
     }
+    setUserProfile(newProfile)
+    localStorage.setItem('marrycheck_mock_profile', JSON.stringify(newProfile))
   }
 
   const logout = async () => {
-    try {
-      await signOut(auth)
-      setUserProfile(null)
-    } catch (error) {
-      throw error
-    }
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    localStorage.removeItem('marrycheck_mock_email')
+    // localStorage.removeItem('marrycheck_mock_profile') // 프로필은 임시로 냅둠 (원하면 지워도 됨)
+    setUser(null)
+    setUserProfile(null)
   }
 
   const updateProfile = async (profileUpdate: Partial<UserProfile>) => {
-    if (!user) return
+    await new Promise((resolve) => setTimeout(resolve, 800))
+    if (!user || !userProfile) return
 
-    try {
-      const updatedProfile = {
-        ...userProfile,
-        ...profileUpdate,
-        updatedAt: new Date(),
-      } as UserProfile
+    const updatedProfile = {
+      ...userProfile,
+      ...profileUpdate,
+      updatedAt: new Date(),
+    } as UserProfile
 
-      await setDoc(doc(db, 'users', user.uid), updatedProfile, { merge: true })
-      setUserProfile(updatedProfile)
-    } catch (error) {
-      throw error
-    }
+    setUserProfile(updatedProfile)
+    localStorage.setItem('marrycheck_mock_profile', JSON.stringify(updatedProfile))
   }
 
   const value = {

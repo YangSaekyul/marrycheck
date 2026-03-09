@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
+import BottomNav from '@/components/BottomNav'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -17,9 +18,12 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ko">
-      <body className={inter.className}>
+      <body className={`${inter.className} bg-gray-50 text-gray-900`}>
         <AuthProvider>
-          {children}
+          <div className="mx-auto max-w-lg min-h-screen bg-white shadow-xl relative pb-16">
+            {children}
+            <BottomNav />
+          </div>
         </AuthProvider>
       </body>
     </html>

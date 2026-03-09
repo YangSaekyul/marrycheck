@@ -3,6 +3,8 @@
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
+import { ChevronRight, CalendarHeart, CheckCircle2, Wallet, ImageIcon } from 'lucide-react'
+import Link from 'next/link'
 
 export default function Home() {
   const { user, userProfile, loading, logout } = useAuth()
@@ -16,88 +18,109 @@ export default function Home() {
     }
   }, [user, userProfile, loading, router])
 
-  if (loading) {
+  if (loading || !user) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">로딩 중...</p>
-        </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-pink-500"></div>
       </div>
     )
   }
 
-  if (!user) {
-    return null // 리다이렉트 중
-  }
-
   return (
-    <main className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-purple-50">
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 opacity-10" style={{backgroundImage: "url('https://readdy.ai/api/search-image?query=romantic%20wedding%20preparation%20background%20with%20soft%20pink%20rose%20petals%20and%20delicate%20white%20flowers%20scattered%20on%20marble%20surface%20dreamy%20atmosphere%20warm%20lighting%20elegant%20minimal%20design&amp;width=1200&amp;height=800&amp;seq=hero-bg&amp;orientation=landscape')", backgroundSize: 'cover', backgroundPosition: 'center'}}></div>
-        <div className="relative px-6 pt-8 pb-12">
-          <div className="max-w-4xl mx-auto">
-            {/* Header with Logout */}
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800">Marry Check</h1>
-                <p className="text-sm text-gray-600">결혼 준비를 함께해요 💕</p>
-              </div>
-              <button
-                onClick={logout}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-medium transition-colors"
-              >
-                로그아웃
-              </button>
-            </div>
+    <main className="min-h-screen bg-gray-50 pb-20">
+      {/* Hero Section */}
+      <div className="relative bg-gradient-to-br from-pink-50 via-white to-purple-50 pt-12 pb-8 px-6 rounded-b-[2rem] shadow-sm">
+        <div className="flex justify-between items-start mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800 tracking-tight">
+              {userProfile?.gender === 'female' ? '지은' : '민수'} ❤️ {userProfile?.gender === 'female' ? '민수' : '지은'}
+            </h1>
+            <p className="text-sm font-medium text-pink-600 mt-1">우리 결혼하는 날 D-120</p>
+          </div>
+          <button onClick={logout} className="text-xs text-gray-400 font-medium hover:text-gray-600">
+            로그아웃
+          </button>
+        </div>
 
-            {/* Couple Profiles */}
-            <div className="flex items-center justify-center">
-              <div className="flex items-center space-x-8">
-                <div className="text-center">
-                  <div className="relative">
-                    <img alt="지은" className="w-20 h-20 rounded-full border-4 border-pink-200 shadow-lg object-cover object-top" src="https://via.placeholder.com/80" />
-                    <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-pink-500 rounded-full flex items-center justify-center">
-                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                  </div>
-                  <p className="mt-3 font-semibold text-gray-800">지은</p>
-                  <p className="text-sm text-pink-600">신부</p>
-                </div>
-                <div className="flex flex-col items-center">
-                  <div className="w-12 h-12 bg-gradient-to-r from-pink-400 to-purple-400 rounded-full flex items-center justify-center shadow-lg animate-pulse">
-                    <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="mt-2 text-xs text-gray-500 font-medium">Together</div>
-                </div>
-                <div className="text-center">
-                  <div className="relative">
-                    <img alt="민수" className="w-20 h-20 rounded-full border-4 border-blue-200 shadow-lg object-cover object-top" src="https://via.placeholder.com/80" />
-                    <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
-                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                  </div>
-                  <p className="mt-3 font-semibold text-gray-800">민수</p>
-                  <p className="text-sm text-blue-600">신랑</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Welcome Message */}
-            <div className="text-center mt-8 mb-8">
-              <h2 className="text-xl font-semibold text-gray-800 mb-2">
-                환영합니다, {userProfile?.gender === 'female' ? '신부' : userProfile?.gender === 'male' ? '신랑' : '사용자'}님! 🎉
-              </h2>
-              <p className="text-gray-600">결혼 준비를 시작해보세요</p>
-            </div>
+        {/* Progress Card */}
+        <div className="bg-white rounded-2xl p-5 shadow-sm border border-pink-100/50">
+          <div className="flex justify-between items-center mb-3">
+            <span className="text-sm font-medium text-gray-600">결혼 준비 진행률</span>
+            <span className="text-lg font-bold text-pink-600">45%</span>
+          </div>
+          <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-pink-400 to-purple-400 w-[45%] rounded-full transition-all duration-1000 ease-out"></div>
           </div>
         </div>
+      </div>
+
+      <div className="px-6 mt-6 space-y-4">
+        {/* Today's Briefing */}
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-base font-bold text-gray-800 flex items-center">
+              오늘의 브리핑
+            </h2>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-3">
+            <Link href="/checklist" className="block bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:border-pink-200 transition-colors">
+              <div className="flex items-center space-x-2 mb-2">
+                <div className="p-2 bg-pink-50 rounded-xl">
+                  <CheckCircle2 size={18} className="text-pink-500" />
+                </div>
+                <span className="text-sm font-medium text-gray-700">할 일</span>
+              </div>
+              <p className="text-2xl font-bold text-gray-800">
+                3<span className="text-sm font-normal text-gray-400 ml-1">개</span>
+              </p>
+            </Link>
+
+            <Link href="/budget" className="block bg-white p-4 rounded-2xl border border-gray-100 shadow-sm hover:border-blue-200 transition-colors">
+              <div className="flex items-center space-x-2 mb-2">
+                <div className="p-2 bg-blue-50 rounded-xl">
+                  <Wallet size={18} className="text-blue-500" />
+                </div>
+                <span className="text-sm font-medium text-gray-700">예산 확인</span>
+              </div>
+              <p className="text-2xl font-bold text-gray-800 text-transparent bg-clip-text bg-gradient-to-r from-gray-800 to-gray-600">
+                1<span className="text-sm font-normal text-gray-400 ml-1">건</span>
+              </p>
+            </Link>
+          </div>
+        </section>
+
+        {/* Quick Menu */}
+        <section className="pt-2">
+          <h2 className="text-base font-bold text-gray-800 mb-3">바로가기</h2>
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <Link href="/story" className="flex items-center justify-between p-4 border-b border-gray-50 hover:bg-gray-50 transition-colors">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 bg-purple-50 rounded-xl">
+                  <ImageIcon size={20} className="text-purple-500" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-800">우리의 스토리 기록</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">상견례 사진 올려볼까요?</p>
+                </div>
+              </div>
+              <ChevronRight size={18} className="text-gray-400" />
+            </Link>
+            
+            <Link href="/checklist" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
+              <div className="flex items-center space-x-3">
+                <div className="p-2.5 bg-orange-50 rounded-xl">
+                  <CalendarHeart size={20} className="text-orange-500" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-800">디데이 일정표</h3>
+                  <p className="text-xs text-gray-500 mt-0.5">다음 주 드레스 가봉 일정 확인</p>
+                </div>
+              </div>
+              <ChevronRight size={18} className="text-gray-400" />
+            </Link>
+          </div>
+        </section>
       </div>
     </main>
   )
