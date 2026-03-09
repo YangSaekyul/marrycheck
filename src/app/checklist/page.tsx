@@ -14,6 +14,8 @@ interface TodoItem {
   completed: boolean
   category: string
   created_at: string
+  due_date?: string
+  due_time?: string
 }
 
 export default function ChecklistPage() {
@@ -22,6 +24,8 @@ export default function ChecklistPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [isAdding, setIsAdding] = useState(false)
   const [newTitle, setNewTitle] = useState('')
+  const [newDueDate, setNewDueDate] = useState('')
+  const [newDueTime, setNewDueTime] = useState('')
 
   const { userProfile } = useAuth()
   const supabase = createClient()
@@ -67,19 +71,27 @@ export default function ChecklistPage() {
     }
   }
 
-  // 3. 새로운 할 일 추가 (임시)
+  // 3. 새로운 할 일 추가
   const handleAddTodo = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newTitle.trim() || !userProfile?.couple_id) return
+    if (!userProfile?.couple_id) {
+       alert('🔒 파트너와 초대 코드로 연결한 뒤 사용할 수 있어요!')
+       return
+    }
+    if (!newTitle.trim()) return
 
-    const { data, error } = await supabase
-      .from('todos')
-      .insert({
+    const insertData: any = {
         title: newTitle,
         couple_id: userProfile.couple_id,
         assignee: 'both',
         category: '일반',
-      })
+    }
+    if (newDueDate) insertData.due_date = newDueDate
+    if (newDueTime) insertData.due_time = newDueTime
+
+    const { data, error } = await supabase
+      .from('todos')
+      .insert(insertData)
       .select()
       .single()
 
@@ -88,6 +100,8 @@ export default function ChecklistPage() {
     } else if (data) {
        setTodos([data as TodoItem, ...todos])
        setNewTitle('')
+       setNewDueDate('')
+       setNewDueTime('')
        setIsAdding(false)
     }
   }
@@ -202,6 +216,13 @@ export default function ChecklistPage() {
                       {getAssigneeLabel(todo.assignee)}
                     </span>
                     <span className="text-xs text-gray-400 font-medium">{todo.category}</span>
+                    
+                    {(todo.due_date || todo.due_time) && (
+                      <span className="text-xs text-pink-500 font-medium flex items-center bg-pink-50 px-2 py-0.5 rounded-md">
+                        <Clock size={12} className="mr-1" />
+                        {todo.due_date && todo.due_date.substring(5).replace('-', '/')} {todo.due_time && todo.due_time.substring(0, 5)}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -233,6 +254,24 @@ export default function ChecklistPage() {
                  placeholder="예) 청첩장 시안 확인하기" 
                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl mb-4 focus:outline-none focus:ring-2 focus:ring-pink-500"
               />
+              <div className="flex space-x-3 mb-6">
+                 <div className="flex-1">
+                   <label className="text-xs font-semibold text-gray-500 mb-1 block">목표 날짜</label>
+                   <input 
+                     type="date" 
+                     value={newDueDate} onChange={e => setNewDueDate(e.target.value)}
+                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm text-gray-700 font-medium"
+                   />
+                 </div>
+                 <div className="flex-1">
+                   <label className="text-xs font-semibold text-gray-500 mb-1 block">시간 (선택)</label>
+                   <input 
+                     type="time" 
+                     value={newDueTime} onChange={e => setNewDueTime(e.target.value)}
+                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm text-gray-700 font-medium"
+                   />
+                 </div>
+              </div>
               <div className="flex space-x-3">
                  <button type="button" onClick={() => setIsAdding(false)} className="flex-1 py-3 text-gray-500 font-semibold bg-gray-100 rounded-xl">취소</button>
                  <button type="submit" disabled={!newTitle.trim()} className="flex-1 py-3 text-white font-semibold bg-pink-500 disabled:opacity-50 rounded-xl">저장</button>

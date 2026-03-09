@@ -95,7 +95,7 @@ export default function StoryPage() {
             stories.map((story) => (
               <div key={story.id} className="relative pl-6">
                 {/* Timeline Dot */}
-                <div className="absolute -left-[9px] top-6 w-4 h-4 rounded-full bg-purple-400 border-4 border-white shadow-sm" />
+                <div className="absolute -left-[9px] top-6 w-4 h-4 rounded-full bg-purple-400 border-4 border-white shadow-sm"></div>
                 
                 {/* Date */}
                 <div className="flex items-center space-x-2 mb-2 pt-5">
@@ -105,12 +105,6 @@ export default function StoryPage() {
                 {/* Story Card */}
                 <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden group hover:shadow-sm transition-shadow">
                   
-                  {/* Location Area (Hidden for now in real DB) */}
-                  <div className="flex items-center space-x-1.5 px-5 py-3 border-b border-gray-50 bg-gray-50/50 hidden">
-                    <MapPin size={14} className="text-gray-400" />
-                    <span className="text-xs font-medium text-gray-600">장소 추가 가능 (미구현)</span>
-                  </div>
-
                   {/* Optional Image */}
                   {story.image_url && (
                     <div className="w-full h-48 sm:h-56 relative overflow-hidden">
@@ -122,29 +116,29 @@ export default function StoryPage() {
                     </div>
                   )}
 
-                {/* Content */}
-                <div className="p-5">
-                  <p className="text-sm text-gray-700 leading-relaxed mb-3 whitespace-pre-wrap">
-                    {story.content}
-                  </p>
+                  {/* Content */}
+                  <div className="p-5">
+                    <p className="text-sm text-gray-700 leading-relaxed mb-3 whitespace-pre-wrap">
+                      {story.content}
+                    </p>
 
-                  {/* Actions */}
-                  <div className="flex items-center justify-between pt-3 border-t border-gray-50">
-                    <div className="flex space-x-4">
-                      <button className="flex items-center space-x-1.5 text-gray-400 hover:text-pink-500 transition-colors">
-                        <Heart size={18} />
-                        <span className="text-xs font-medium">0</span>
+                    {/* Actions */}
+                    <div className="flex items-center justify-between pt-3 border-t border-gray-50">
+                      <div className="flex space-x-4">
+                        <button className="flex items-center space-x-1.5 text-gray-400 hover:text-pink-500 transition-colors">
+                          <Heart size={18} />
+                          <span className="text-xs font-medium">0</span>
+                        </button>
+                      </div>
+                      <button className="text-gray-400 hover:text-gray-600">
+                        <Share2 size={18} />
                       </button>
                     </div>
-                    <button className="text-gray-400 hover:text-gray-600">
-                      <Share2 size={18} />
-                    </button>
                   </div>
                 </div>
               </div>
-            </div>
-          ))
-        )}
+            ))
+          )}
         </div>
       </div>
 
