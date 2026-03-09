@@ -58,29 +58,52 @@ export function AuthProvider({ children }: AuthProviderProps) {
         
         // 유저 정보가 있다면 프로필(메타데이터) 처리
         if (currentUser) {
-           // DB에서 최신 public.users 데이터 연동
-           const { data: dbUser } = await supabase.from('users').select('*').eq('id', currentUser.id).single()
-           
-           const profile: UserProfile = {
+           // 1. 기본 메타데이터로 즉시 UI 렌더링 해제 (Blocking 방지)
+           const baseProfile: UserProfile = {
              email: currentUser.email || '',
-             nickname: dbUser?.nickname || currentUser.user_metadata?.nickname || currentUser.user_metadata?.full_name || '',
-             profile_image: dbUser?.profile_image || currentUser.user_metadata?.profile_image || currentUser.user_metadata?.avatar_url || '',
-             role: dbUser?.role || currentUser.user_metadata?.role || null,
-             couple_id: dbUser?.couple_id || currentUser.user_metadata?.couple_id || null,
-             gender: dbUser?.gender || currentUser.user_metadata?.gender || 'female',
-             birthdate: dbUser?.birthdate || currentUser.user_metadata?.birthdate,
-             temp_partner_name: dbUser?.temp_partner_name || currentUser.user_metadata?.temp_partner_name,
+             nickname: currentUser.user_metadata?.nickname || currentUser.user_metadata?.full_name || '',
+             profile_image: currentUser.user_metadata?.profile_image || currentUser.user_metadata?.avatar_url || '',
+             role: currentUser.user_metadata?.role || null,
+             couple_id: currentUser.user_metadata?.couple_id || null,
+             gender: currentUser.user_metadata?.gender || 'female',
+             birthdate: currentUser.user_metadata?.birthdate,
+             temp_partner_name: currentUser.user_metadata?.temp_partner_name,
              createdAt: new Date(currentUser.created_at),
-             updatedAt: new Date(dbUser?.updated_at || currentUser.updated_at || currentUser.created_at),
+             updatedAt: new Date(currentUser.updated_at || currentUser.created_at),
            }
-           setUserProfile(profile)
+           setUserProfile(baseProfile)
+           setLoading(false) // 여기서 바로 로딩 해제 (무한 로딩 픽스)
+
+           // 2. 비동기로 DB 최신 데이터 가져와서 조용히 덮어쓰기 (Background sync)
+           const syncDb = async () => {
+             try {
+                const { data: dbUser } = await supabase.from('users').select('*').eq('id', currentUser.id).single()
+                if (dbUser) {
+                  setUserProfile(prev => prev ? {
+                    ...prev,
+                    nickname: dbUser.nickname || prev.nickname,
+                    profile_image: dbUser.profile_image || prev.profile_image,
+                    role: dbUser.role || prev.role,
+                    couple_id: dbUser.couple_id || prev.couple_id,
+                    gender: dbUser.gender || prev.gender,
+                    birthdate: dbUser.birthdate || prev.birthdate,
+                    temp_partner_name: dbUser.temp_partner_name || prev.temp_partner_name,
+                    updatedAt: new Date(dbUser.updated_at || prev.updatedAt)
+                  } : null)
+                }
+             } catch (err) {
+               console.error('Background DB sync error:', err)
+             }
+           }
+           syncDb()
+
         } else {
            setUserProfile(null)
+           setLoading(false)
         }
 
       } catch (error) {
         console.error('Error checking session:', error)
-      } finally {
         setLoading(false)
       }
     }
@@ -89,30 +112,54 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // 2. 세션 변경 사항 실시간 감지
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      (_event, session) => {
         const currentUser = session?.user ?? null
         setUser(currentUser)
         
         if (currentUser) {
-           const { data: dbUser } = await supabase.from('users').select('*').eq('id', currentUser.id).single()
-           
-           const profile: UserProfile = {
+           // 1. 기본 메타데이터로 즉시 UI 렌더링 해제
+           const baseProfile: UserProfile = {
              email: currentUser.email || '',
-             nickname: dbUser?.nickname || currentUser.user_metadata?.nickname || currentUser.user_metadata?.full_name || '',
-             profile_image: dbUser?.profile_image || currentUser.user_metadata?.profile_image || currentUser.user_metadata?.avatar_url || '',
-             role: dbUser?.role || currentUser.user_metadata?.role || null,
-             couple_id: dbUser?.couple_id || currentUser.user_metadata?.couple_id || null,
-             gender: dbUser?.gender || currentUser.user_metadata?.gender || 'female',
-             birthdate: dbUser?.birthdate || currentUser.user_metadata?.birthdate,
-             temp_partner_name: dbUser?.temp_partner_name || currentUser.user_metadata?.temp_partner_name,
+             nickname: currentUser.user_metadata?.nickname || currentUser.user_metadata?.full_name || '',
+             profile_image: currentUser.user_metadata?.profile_image || currentUser.user_metadata?.avatar_url || '',
+             role: currentUser.user_metadata?.role || null,
+             couple_id: currentUser.user_metadata?.couple_id || null,
+             gender: currentUser.user_metadata?.gender || 'female',
+             birthdate: currentUser.user_metadata?.birthdate,
+             temp_partner_name: currentUser.user_metadata?.temp_partner_name,
              createdAt: new Date(currentUser.created_at),
-             updatedAt: new Date(dbUser?.updated_at || currentUser.updated_at || currentUser.created_at),
+             updatedAt: new Date(currentUser.updated_at || currentUser.created_at),
            }
-           setUserProfile(profile)
+           setUserProfile(baseProfile)
+           setLoading(false)
+
+           // 2. 비동기 DB 동기화
+           const syncDbChange = async () => {
+             try {
+               const { data: dbUser } = await supabase.from('users').select('*').eq('id', currentUser.id).single()
+               if (dbUser) {
+                 setUserProfile(prev => prev ? {
+                   ...prev,
+                   nickname: dbUser.nickname || prev.nickname,
+                   profile_image: dbUser.profile_image || prev.profile_image,
+                   role: dbUser.role || prev.role,
+                   couple_id: dbUser.couple_id || prev.couple_id,
+                   gender: dbUser.gender || prev.gender,
+                   birthdate: dbUser.birthdate || prev.birthdate,
+                   temp_partner_name: dbUser.temp_partner_name || prev.temp_partner_name,
+                   updatedAt: new Date(dbUser.updated_at || prev.updatedAt)
+                 } : null)
+               }
+             } catch (err) {
+               console.error('Background DB sync error (auth change):', err)
+             }
+           }
+           syncDbChange()
+             
         } else {
            setUserProfile(null)
+           setLoading(false)
         }
-        setLoading(false)
       }
     )
 
