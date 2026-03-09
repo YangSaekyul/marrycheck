@@ -29,6 +29,7 @@ export default function ProfileSetup() {
   const [inputCode, setInputCode] = useState('')
   const [partnerToConfirm, setPartnerToConfirm] = useState<{nickname: string, couple_id: string} | null>(null)
   const [linking, setLinking] = useState(false)
+  const [weddingDate, setWeddingDate] = useState('') // 커플 공동 결혼일
   
   // 에러 모달 상태
   const [customAlert, setCustomAlert] = useState<{visible: boolean, title: string, message: string}>({ visible: false, title: '', message: '' })
@@ -86,16 +87,32 @@ export default function ProfileSetup() {
     }
   }
 
-  // 탭 변경 시 이미 couple_id가 있다면 기존 코드 불러오기 시도
+  // 탭 변경 시 이미 couple_id가 있다면 기존 코드 및 결혼일 불러오기 시도
   useEffect(() => {
-    if (activeTab === 'couple' && userProfile?.couple_id && !myInviteCode) {
-      const fetchMyCode = async () => {
-        const { data } = await supabase.from('couples').select('invite_code').eq('id', userProfile.couple_id).single()
-        if (data) setMyInviteCode(data.invite_code)
+    if (activeTab === 'couple' && userProfile?.couple_id) {
+      const fetchCoupleData = async () => {
+        const { data } = await supabase.from('couples').select('invite_code, wedding_date').eq('id', userProfile.couple_id).single()
+        if (data) {
+          setMyInviteCode(data.invite_code)
+          if (data.wedding_date) setWeddingDate(data.wedding_date)
+        }
       }
-      fetchMyCode()
+      fetchCoupleData()
     }
   }, [activeTab, userProfile?.couple_id])
+
+  // 커플 정보(결혼일) 업데이트
+  const handleUpdateCouple = async () => {
+    if(!userProfile?.couple_id) return
+    setLoading(true)
+    const { error } = await supabase.from('couples').update({ wedding_date: weddingDate }).eq('id', userProfile.couple_id)
+    if(error) {
+       setCustomAlert({ visible: true, title: '오류', message: '저장에 실패했습니다: ' + error.message })
+    } else {
+       setCustomAlert({ visible: true, title: '저장 완료', message: '우리의 결혼일이 성공적으로 저장되었습니다. 🎉' })
+    }
+    setLoading(false)
+  }
 
   // 2. 파트너 코드 입력 후 확인
   const handleCheckPartnerCode = async () => {
@@ -179,7 +196,7 @@ export default function ProfileSetup() {
                onClick={() => setActiveTab('couple')}
                className={`flex-1 pb-3 font-semibold transition-colors ${activeTab === 'couple' ? 'text-pink-600 border-b-2 border-pink-500' : 'text-gray-400 hover:text-gray-600'}`}
             >
-              커플 연동 관리
+              커플 연동 및 설정
             </button>
           </div>
 
@@ -282,9 +299,36 @@ export default function ProfileSetup() {
             </button>
           </form>
           ) : (
-            <div className="py-10 text-center space-y-4">
-               <div className="w-16 h-16 bg-pink-100 text-pink-500 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl border-4 border-white shadow-sm">
-                 💍
+            <div className="py-6 text-center space-y-4 animate-in fade-in zoom-in duration-300">
+               
+               {/* 1. 커플 정보 (결혼일) 설정 */}
+               {userProfile?.couple_id ? (
+                  <div className="bg-pink-50/50 p-6 rounded-2xl border border-pink-100 mb-8 mt-2">
+                     <h3 className="text-lg font-bold text-gray-800 mb-4 text-left">💍 우리의 결혼 예정일</h3>
+                     <div className="flex space-x-2">
+                       <input
+                         type="date"
+                         value={weddingDate}
+                         onChange={(e) => setWeddingDate(e.target.value)}
+                         className="flex-1 px-4 py-3 border border-pink-200 rounded-xl focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-colors bg-white font-medium"
+                       />
+                       <button
+                         onClick={handleUpdateCouple}
+                         disabled={loading || !weddingDate}
+                         className="px-6 py-3 bg-pink-500 text-white font-bold rounded-xl hover:bg-pink-600 transition-colors disabled:opacity-50 shadow-sm"
+                       >
+                         {loading ? '저장...' : '저장하기'}
+                       </button>
+                     </div>
+                  </div>
+               ) : (
+                  <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 mb-8 mt-2">
+                     <p className="text-sm text-gray-500 font-medium">코드를 발급받아 커플 연동을 시작하세요!</p>
+                  </div>
+               )}
+
+               <div className="w-16 h-16 bg-purple-100 text-purple-500 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl border-4 border-white shadow-sm mt-8">
+                 🔗
                </div>
                <h3 className="text-xl font-bold text-gray-800">우리의 고유 초대 코드</h3>
                <p className="text-gray-500 text-sm pb-4">상대방에게 이 코드를 전달해 데이터를 연결하세요.</p>

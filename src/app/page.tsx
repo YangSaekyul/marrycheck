@@ -14,6 +14,12 @@ export default function Home() {
 
   const [todoCount, setTodoCount] = useState(0)
   const [txCount, setTxCount] = useState(0)
+  
+  // 커플 공유 데이터 (대시보드용)
+  const [dDay, setDDay] = useState<string | null>(null)
+  const [totalBudget, setTotalBudget] = useState(0)
+  const [totalSpent, setTotalSpent] = useState(0)
+  const [nextTodo, setNextTodo] = useState<{title: string} | null>(null)
 
   // 1. 초기 라우팅 제어 (온보딩)
   useEffect(() => {
@@ -29,21 +35,54 @@ export default function Home() {
     if (!userProfile?.couple_id) return
 
     const fetchDashboardData = async () => {
-      // 1) 완료되지 않은 체크리스트 갯수
-      const { count: tCount } = await supabase
+      // 1) 커플 공통 정보 (결혼일, 총 예산) 패칭 및 D-Day 계산
+      const { data: coupleData } = await supabase
+        .from('couples')
+        .select('wedding_date, total_budget')
+        .eq('id', userProfile.couple_id)
+        .single()
+      
+      if (coupleData) {
+        setTotalBudget(coupleData.total_budget || 0)
+        
+        if (coupleData.wedding_date) {
+          const target = new Date(coupleData.wedding_date)
+          const today = new Date()
+          target.setHours(0, 0, 0, 0)
+          today.setHours(0, 0, 0, 0)
+          const diffTime = target.getTime() - today.getTime()
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+          
+          if (diffDays > 0) setDDay(`D-${diffDays}`)
+          else if (diffDays === 0) setDDay('D-Day')
+          else setDDay(`D+${Math.abs(diffDays)}`)
+        }
+      }
+
+      // 2) 완료되지 않은 체크리스트 갯수 및 다음 일정(목록의 맨 앞 요소)
+      const { data: tData, count: tCount } = await supabase
         .from('todos')
-        .select('*', { count: 'exact', head: true })
+        .select('title', { count: 'exact' })
         .eq('couple_id', userProfile.couple_id)
         .eq('completed', false)
+        .order('created_at', { ascending: true })
       
-      // 2) 등록된 지출 내역 전체 건수 (또는 최근 N일)
-      const { count: xCount } = await supabase
+      setTodoCount(tCount || 0)
+      if (tData && tData.length > 0) {
+        setNextTodo({ title: tData[0].title })
+      }
+
+      // 3) 총 지출 건수 및 지출액 합산 (예산 남은 금액 표시용)
+      const { data: txData, count: xCount } = await supabase
         .from('transactions')
-        .select('*', { count: 'exact', head: true })
+        .select('amount', { count: 'exact' })
         .eq('couple_id', userProfile.couple_id)
 
-      setTodoCount(tCount || 0)
       setTxCount(xCount || 0)
+      if (txData) {
+        const spent = txData.reduce((acc, curr) => acc + (curr.amount || 0), 0)
+        setTotalSpent(spent)
+      }
     }
 
     fetchDashboardData()
@@ -69,7 +108,9 @@ export default function Home() {
             <h1 className="text-2xl font-bold text-gray-800 tracking-tight">
               {myName} ❤️ {partnerName}
             </h1>
-            <p className="text-sm font-medium text-pink-600 mt-1">우리 결혼하는 날 D-120</p>
+            <p className="text-sm font-medium text-pink-600 mt-1">
+              {dDay ? `우리 결혼하는 날 ${dDay}` : '프로필에서 결혼 예정일을 설정해주세요 💍'}
+            </p>
           </div>
           <div className="flex flex-col items-end space-y-2">
             <Link href="/profile" className="p-2 bg-white/50 hover:bg-white/80 rounded-full transition-colors">
@@ -81,14 +122,26 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Progress Card */}
+        {/* Budget & Progress Card */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-pink-100/50">
           <div className="flex justify-between items-center mb-3">
-            <span className="text-sm font-medium text-gray-600">결혼 준비의 시작을 응원해요!</span>
+            <span className="text-sm font-medium text-gray-600">우리의 예산 현황</span>
+            <span className="text-lg font-bold text-pink-600">
+              {totalBudget > 0 ? `${Math.round((totalSpent/totalBudget)*100)}%` : '0%'}
+            </span>
           </div>
-          <p className="text-xs text-gray-500 mt-1 pb-1">
-            체크리스트와 지출 내역을 커플과 공유하세요.
-          </p>
+          <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden mb-3">
+            <div 
+              className="h-full bg-gradient-to-r from-pink-400 to-purple-400 rounded-full transition-all duration-1000 ease-out"
+              style={{ width: `${totalBudget > 0 ? Math.min((totalSpent/totalBudget)*100, 100) : 0}%` }}
+            ></div>
+          </div>
+          <div className="flex justify-between text-xs">
+             <span className="text-gray-500">총 예산: {totalBudget > 0 ? totalBudget.toLocaleString() + '원' : '미설정 (결혼 예산에서 설정)'}</span>
+             <span className="text-pink-600 font-medium whitespace-nowrap pl-2">
+               남은 예산: {totalBudget > 0 ? Math.max(totalBudget - totalSpent, 0).toLocaleString() + '원' : '-'}
+             </span>
+          </div>
         </div>
       </div>
 
@@ -146,16 +199,18 @@ export default function Home() {
             </Link>
             
             <Link href="/checklist" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors">
-              <div className="flex items-center space-x-3">
-                <div className="p-2.5 bg-orange-50 rounded-xl">
+              <div className="flex items-center space-x-3 w-[85%]">
+                <div className="p-2.5 bg-orange-50 rounded-xl flex-shrink-0">
                   <CalendarHeart size={20} className="text-orange-500" />
                 </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-800">디데이 일정표</h3>
-                  <p className="text-xs text-gray-500 mt-0.5">다음 주 드레스 가봉 일정 확인</p>
+                <div className="truncate">
+                  <h3 className="text-sm font-semibold text-gray-800">다음 우리의 미션</h3>
+                  <p className="text-xs text-gray-500 mt-0.5 truncate">
+                    {nextTodo ? nextTodo.title : '등록된 할 일이 없어요!'}
+                  </p>
                 </div>
               </div>
-              <ChevronRight size={18} className="text-gray-400" />
+              <ChevronRight size={18} className="text-gray-400 flex-shrink-0" />
             </Link>
           </div>
         </section>
