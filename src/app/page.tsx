@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { ChevronRight, CalendarHeart, CheckCircle2, Wallet, ImageIcon, Settings } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
+import { parseSafeDate } from '@/utils/date'
 
 export default function Home() {
   const { user, userProfile, loading, logout } = useAuth()
@@ -48,16 +49,18 @@ export default function Home() {
         setTotalBudget(coupleData.total_budget || 0)
         
         if (coupleData.wedding_date) {
-          const target = new Date(coupleData.wedding_date)
+          const target = parseSafeDate(coupleData.wedding_date)
           const today = new Date()
-          target.setHours(0, 0, 0, 0)
-          today.setHours(0, 0, 0, 0)
-          const diffTime = target.getTime() - today.getTime()
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-          
-          if (diffDays > 0) setDDay(`D-${diffDays}`)
-          else if (diffDays === 0) setDDay('D-Day')
-          else setDDay(`D+${Math.abs(diffDays)}`)
+          if (target) {
+            target.setHours(0, 0, 0, 0)
+            today.setHours(0, 0, 0, 0)
+            const diffTime = target.getTime() - today.getTime()
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+            
+            if (diffDays > 0) setDDay(`D-${diffDays}`)
+            else if (diffDays === 0) setDDay('D-Day')
+            else setDDay(`D+${Math.abs(diffDays)}`)
+          }
         }
       }
 
@@ -119,7 +122,9 @@ export default function Home() {
     today.setHours(0,0,0,0)
     
     // 생일 문자열(ex: '1995-05-13') 에서 월,일만 추출해 올해 날짜로 만듦
-    const bDate = new Date(birthStr)
+    const bDate = parseSafeDate(birthStr)
+    if (!bDate) return null
+    
     let nextBday = new Date(today.getFullYear(), bDate.getMonth(), bDate.getDate())
     
     // 이미 지났으면 내년으로

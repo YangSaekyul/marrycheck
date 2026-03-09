@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { User } from '@supabase/supabase-js'
+import { parseSafeDate } from '@/utils/date'
 
 interface UserProfile {
   email: string
@@ -68,8 +69,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
              gender: currentUser.user_metadata?.gender || 'female',
              birthdate: currentUser.user_metadata?.birthdate,
              temp_partner_name: currentUser.user_metadata?.temp_partner_name,
-             createdAt: new Date(currentUser.created_at),
-             updatedAt: new Date(currentUser.updated_at || currentUser.created_at),
+             createdAt: parseSafeDate(currentUser.created_at) || new Date(),
+             updatedAt: parseSafeDate(currentUser.updated_at || currentUser.created_at) || new Date(),
            }
            setUserProfile(baseProfile)
            setLoading(false) // 여기서 바로 로딩 해제 (무한 로딩 픽스)
@@ -88,7 +89,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
                     gender: dbUser.gender || prev.gender,
                     birthdate: dbUser.birthdate || prev.birthdate,
                     temp_partner_name: dbUser.temp_partner_name || prev.temp_partner_name,
-                    updatedAt: new Date(dbUser.updated_at || prev.updatedAt)
+                    updatedAt: parseSafeDate(dbUser.updated_at) || prev.updatedAt
                   } : null)
                 }
              } catch (err) {
@@ -127,8 +128,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
              gender: currentUser.user_metadata?.gender || 'female',
              birthdate: currentUser.user_metadata?.birthdate,
              temp_partner_name: currentUser.user_metadata?.temp_partner_name,
-             createdAt: new Date(currentUser.created_at),
-             updatedAt: new Date(currentUser.updated_at || currentUser.created_at),
+             createdAt: parseSafeDate(currentUser.created_at) || new Date(),
+             updatedAt: parseSafeDate(currentUser.updated_at || currentUser.created_at) || new Date(),
            }
            setUserProfile(baseProfile)
            setLoading(false)
@@ -147,7 +148,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
                    gender: dbUser.gender || prev.gender,
                    birthdate: dbUser.birthdate || prev.birthdate,
                    temp_partner_name: dbUser.temp_partner_name || prev.temp_partner_name,
-                   updatedAt: new Date(dbUser.updated_at || prev.updatedAt)
+                   updatedAt: parseSafeDate(dbUser.updated_at) || prev.updatedAt
                  } : null)
                }
              } catch (err) {
