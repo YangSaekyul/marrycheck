@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
-import Script from 'next/script'
 import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
 import { ModalProvider } from '@/contexts/ModalContext'
@@ -41,34 +40,8 @@ export default function RootLayout({
             };
           }
         `}} />
-        <Script src="https://cdn.jsdelivr.net/npm/eruda" strategy="beforeInteractive" />
-        <Script id="eruda-init" strategy="beforeInteractive">
-          {`if (typeof eruda !== "undefined") eruda.init();`}
-        </Script>
       </head>
       <body className={`${inter.className} bg-gray-50 text-gray-900`}>
-        <script
-          dangerouslySetInnerHTML={{
-             __html: `
-               window.onerror = function(msg, url, line, col, error) {
-                 var el = document.createElement('div');
-                 el.style.cssText = 'position:fixed;top:0;left:0;right:0;background:red;color:white;z-index:9999;padding:10px;font-size:12px;overflow-wrap:break-word;word-break:break-all;';
-                 el.innerHTML = 'Global Error: ' + msg + '<br/>Line: ' + line + '<br/>Col: ' + col + '<br/>Stack: ' + (error ? error.stack : '');
-                 document.body.prepend(el);
-               };
-               
-               var originalConsoleError = console.error;
-               console.error = function() {
-                 var args = Array.prototype.slice.call(arguments);
-                 originalConsoleError.apply(console, args);
-                 var el = document.createElement('div');
-                 el.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:orange;color:black;z-index:9998;padding:10px;font-size:12px;max-height:30%;overflow:auto;word-break:break-all;';
-                 el.innerHTML = 'Console Error: ' + args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ');
-                 document.body.append(el);
-               };
-             `
-          }}
-        />
         <KakaoBrowserRedirect />
         <ModalProvider>
           <AuthProvider>
