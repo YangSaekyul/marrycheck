@@ -3,10 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/utils/supabase/client'
 
 export default function ProfileSetup() {
   const { user, userProfile, updateProfile } = useAuth()
   const router = useRouter()
+  const supabase = createClient()
 
   const [activeTab, setActiveTab] = useState<'profile' | 'couple'>('profile')
   
@@ -17,9 +19,16 @@ export default function ProfileSetup() {
   const [role, setRole] = useState(userProfile?.role || 'bride')
   const [tempPartnerName, setTempPartnerName] = useState(userProfile?.temp_partner_name || '')
   
+  
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
+
+  // 커플 연동 관련 상태
+  const [myInviteCode, setMyInviteCode] = useState('')
+  const [inputCode, setInputCode] = useState('')
+  const [partnerToConfirm, setPartnerToConfirm] = useState<{nickname: string, couple_id: string} | null>(null)
+  const [linking, setLinking] = useState(false)
 
   // userProfile이 뒤늦게 로딩될 경우 대비
   useEffect(() => {
@@ -53,6 +62,71 @@ export default function ProfileSetup() {
       setLoading(false)
     }
   }
+
+  // ------------- 커플 연동 관련 함수들 -------------
+  
+  // 1. 내 원래 초대코드 가져오거나 새로 발급받기
+  const generateOrGetCode = async () => {
+    try {
+      setLinking(true)
+      const { data, error } = await supabase.rpc('create_couple_and_get_code')
+      if (error) throw error
+      if (data) setMyInviteCode(data)
+    } catch (err: any) {
+      alert('코드 발급에 실패했습니다: ' + err.message)
+    } finally {
+      setLinking(false)
+    }
+  }
+
+  // 탭 변경 시 이미 couple_id가 있다면 기존 코드 불러오기 시도
+  useEffect(() => {
+    if (activeTab === 'couple' && userProfile?.couple_id && !myInviteCode) {
+      const fetchMyCode = async () => {
+        const { data } = await supabase.from('couples').select('invite_code').eq('id', userProfile.couple_id).single()
+        if (data) setMyInviteCode(data.invite_code)
+      }
+      fetchMyCode()
+    }
+  }, [activeTab, userProfile?.couple_id])
+
+  // 2. 파트너 코드 입력 후 확인
+  const handleCheckPartnerCode = async () => {
+    if (!inputCode.trim()) return
+    try {
+      setLinking(true)
+      const { data, error } = await supabase.rpc('get_partner_info_by_code', { p_invite_code: inputCode })
+      if (error) throw error
+      if (data) {
+        setPartnerToConfirm({ nickname: data.nickname, couple_id: data.couple_id })
+      }
+    } catch (err: any) {
+      alert(err.message || '상대방을 찾을 수 없습니다.')
+    } finally {
+      setLinking(false)
+    }
+  }
+
+  // 3. 최종 연동 동의 (매칭 합체)
+  const handleConfirmLink = async () => {
+    if (!partnerToConfirm) return
+    try {
+      setLinking(true)
+      const { data, error: linkError } = await supabase.rpc('link_couple', { p_couple_id: partnerToConfirm.couple_id })
+      if (linkError) throw linkError
+      
+      alert(`🎉 성공적으로 ${partnerToConfirm.nickname} 님과 연결되었습니다!`)
+      setPartnerToConfirm(null)
+      // 프로필 재로딩을 위해 새로고침 또는 메인 이동
+      window.location.href = '/'
+    } catch (err: any) {
+      alert('연결 중 오류가 발생했습니다: ' + err.message)
+    } finally {
+      setLinking(false)
+    }
+  }
+
+  // -------------------------------------------------
 
   if (!user) {
     return null
@@ -186,28 +260,86 @@ export default function ProfileSetup() {
           </form>
           ) : (
             <div className="py-10 text-center space-y-4">
-               {/* 커플 연동 탭 영역 (스켈레톤 구조) */}
                <div className="w-16 h-16 bg-pink-100 text-pink-500 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl border-4 border-white shadow-sm">
                  💍
                </div>
                <h3 className="text-xl font-bold text-gray-800">우리의 고유 초대 코드</h3>
                <p className="text-gray-500 text-sm pb-4">상대방에게 이 코드를 전달해 데이터를 연결하세요.</p>
                
-               <div className="bg-gray-100 p-4 rounded-2xl border border-gray-200 border-dashed cursor-pointer hover:bg-gray-200 transition-colors">
-                  <span className="text-2xl font-mono font-bold text-gray-700 tracking-widest">
-                    A1B2C3
-                  </span>
+               <div 
+                 onClick={myInviteCode ? undefined : generateOrGetCode}
+                 className={`p-4 rounded-2xl border border-dashed transition-colors ${
+                   myInviteCode ? 'bg-pink-50 border-pink-200' : 'bg-gray-100 border-gray-300 hover:bg-gray-200 cursor-pointer'
+                 }`}
+               >
+                  {linking && !myInviteCode ? (
+                    <span className="text-gray-500 font-medium tracking-wide">생성 중...</span>
+                  ) : myInviteCode ? (
+                    <span className="text-3xl font-mono font-bold text-pink-600 tracking-widest">{myInviteCode}</span>
+                  ) : (
+                    <span className="text-gray-500 font-medium">코드 생성하기 (터치)</span>
+                  )}
                </div>
+               {myInviteCode && (
+                 <p className="text-xs text-pink-500 mt-2 font-medium cursor-pointer hover:underline" onClick={() => {
+                   navigator.clipboard.writeText(myInviteCode);
+                   alert('코드가 클립보드에 복사되었습니다!');
+                 }}>
+                   복사하기 ✂️
+                 </p>
+               )}
                
-               <div className="pt-6">
-                 <p className="text-sm font-semibold text-gray-600 mb-3">또는 받은 코드가 있으신가요?</p>
+               <div className="pt-8 border-t border-gray-100 mt-8">
+                 <p className="text-sm font-semibold text-gray-600 mb-3 block text-left">또는 받은 코드가 있으신가요?</p>
                  <div className="flex space-x-2">
-                    <input type="text" placeholder="코드 붙여넣기" className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-400 outline-none uppercase font-mono tracking-widest text-sm" />
-                    <button className="bg-gray-800 text-white px-5 rounded-xl font-medium hover:bg-gray-700 transition-colors whitespace-nowrap">
-                       연결
+                    <input 
+                      type="text" 
+                      value={inputCode}
+                      onChange={(e) => setInputCode(e.target.value.toUpperCase())}
+                      placeholder="코드 붙여넣기" 
+                      className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-400 outline-none uppercase font-mono tracking-widest text-sm" 
+                      maxLength={6}
+                    />
+                    <button 
+                      onClick={handleCheckPartnerCode}
+                      disabled={linking || inputCode.length < 6}
+                      className="bg-gray-800 disabled:opacity-50 text-white px-6 rounded-xl font-medium hover:bg-gray-700 transition-colors whitespace-nowrap shadow-sm"
+                    >
+                       조회
                     </button>
                  </div>
                </div>
+            </div>
+          )}
+
+          {/* 파트너 확인 팝업 (모달) */}
+          {partnerToConfirm && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center items-center flex flex-col animate-in fade-in zoom-in duration-200">
+                <div className="w-16 h-16 bg-pink-100 rounded-full flex items-center justify-center text-3xl mb-4 border-4 border-white shadow-sm">
+                  👩‍❤️‍👨
+                </div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">파트너를 찾았습니다!</h3>
+                <p className="text-gray-600 mb-6 leading-relaxed">
+                  <span className="font-bold text-pink-600 text-lg border-b-2 border-pink-200 pb-0.5">{partnerToConfirm.nickname}</span> 님과<br/>데이터를 연결하시겠습니까?
+                </p>
+                <div className="flex space-x-3 w-full">
+                   <button 
+                     onClick={() => setPartnerToConfirm(null)}
+                     disabled={linking}
+                     className="flex-1 py-3 bg-gray-100 text-gray-600 font-semibold rounded-xl hover:bg-gray-200 transition-colors"
+                   >
+                     취소
+                   </button>
+                   <button 
+                     onClick={handleConfirmLink}
+                     disabled={linking}
+                     className="flex-1 py-3 bg-pink-500 text-white font-semibold rounded-xl hover:bg-pink-600 transition-colors shadow-md shadow-pink-200"
+                   >
+                     {linking ? '연결 중...' : '동의 및 연결'}
+                   </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
