@@ -44,7 +44,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null)
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
-  const supabase = createClient()
+  
+  // 클라이언트 측에서 싱글톤처럼 동작하여 무한 재렌더링 방지
+  const [supabase] = useState(() => createClient())
 
   useEffect(() => {
     // 1. 초기 세션 확인
