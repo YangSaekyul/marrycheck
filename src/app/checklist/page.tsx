@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, Search, CheckCircle2, Circle, Clock, MoreVertical, Sparkles } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useModal } from '@/contexts/ModalContext'
 import { createClient } from '@/utils/supabase/client'
 
 // Todo Data Type (Supabase Schema 기반)
@@ -35,6 +36,7 @@ export default function ChecklistPage() {
   const [editDueTime, setEditDueTime] = useState('')
 
   const { userProfile } = useAuth()
+  const { showAlert, showConfirm } = useModal()
   const supabase = createClient()
 
   // 1. Supabase에서 투두 리스트 불러오기
@@ -81,11 +83,11 @@ export default function ChecklistPage() {
   const handleAddTodo = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newTitle.trim()) {
-      alert('할 일 내용을 입력해주세요.')
+      showAlert('할 일 내용을 입력해주세요.')
       return
     }
     if (!userProfile?.couple_id) {
-       alert('데이터 동기화가 필요합니다. 화면을 새로고침(F5)하시거나, 로그아웃 후 다시 로그인해주세요!')
+       showAlert({ title: '동기화 필요', message: '데이터 동기화가 필요합니다.\n화면을 새로고침(F5)하시거나, 다시 로그인해주세요!' })
        return
     }
 
@@ -105,7 +107,7 @@ export default function ChecklistPage() {
       .single()
 
     if (error) {
-       alert('할 일 추가 실패: ' + error.message)
+       showAlert('할 일 추가 실패: ' + error.message)
     } else if (data) {
        setTodos([data as TodoItem, ...todos])
        setNewTitle('')
@@ -115,18 +117,24 @@ export default function ChecklistPage() {
     }
   }
 
-  // 4. 할 일 삭제
-  const handleDeleteTodo = async (id: string, e: React.MouseEvent) => {
+  // 4. 할 일 삭제 (커스텀 confirm 적용)
+  const handleDeleteTodo = (id: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!window.confirm('정말 삭제하시겠습니까?')) return
     setActiveMenuId(null)
     
-    const { error } = await supabase.from('todos').delete().eq('id', id)
-    if (!error) {
-      setTodos(prev => prev.filter(t => t.id !== id))
-    } else {
-      alert('삭제 실패: ' + error.message)
-    }
+    showConfirm({
+      title: '할 일 삭제',
+      message: '정말 삭제하시겠습니까?\n이 데이터는 복구할 수 없습니다.',
+      confirmText: '삭제하기',
+      onConfirm: async () => {
+        const { error } = await supabase.from('todos').delete().eq('id', id)
+        if (!error) {
+          setTodos(prev => prev.filter(t => t.id !== id))
+        } else {
+          showAlert('삭제 실패: ' + error.message)
+        }
+      }
+    })
   }
 
   // 5. 할 일 수정 모달 열기
@@ -144,7 +152,7 @@ export default function ChecklistPage() {
     e.preventDefault()
     if (!editingTodo) return
     if (!editTitle.trim()) {
-      alert('할 일 내용을 입력해주세요.')
+      showAlert('할 일 내용을 입력해주세요.')
       return
     }
 
@@ -162,7 +170,7 @@ export default function ChecklistPage() {
       .single()
 
     if (error) {
-      alert('수정 실패: ' + error.message)
+      showAlert('수정 실패: ' + error.message)
     } else if (data) {
       setTodos(prev => prev.map(t => t.id === editingTodo.id ? (data as TodoItem) : t))
       setEditingTodo(null)

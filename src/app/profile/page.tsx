@@ -2,11 +2,13 @@
 
 import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useModal } from '@/contexts/ModalContext'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 
 export default function ProfileSetup() {
   const { user, userProfile, updateProfile } = useAuth()
+  const { showAlert, showConfirm } = useModal()
   const router = useRouter()
   const supabase = createClient()
 
@@ -27,12 +29,8 @@ export default function ProfileSetup() {
   // 커플 연동 관련 상태
   const [myInviteCode, setMyInviteCode] = useState('')
   const [inputCode, setInputCode] = useState('')
-  const [partnerToConfirm, setPartnerToConfirm] = useState<{nickname: string, couple_id: string} | null>(null)
   const [linking, setLinking] = useState(false)
   const [weddingDate, setWeddingDate] = useState('') // 커플 공동 결혼일
-  
-  // 에러 모달 상태
-  const [customAlert, setCustomAlert] = useState<{visible: boolean, title: string, message: string}>({ visible: false, title: '', message: '' })
 
   // userProfile이 뒤늦게 로딩될 경우 대비
   useEffect(() => {
@@ -77,8 +75,7 @@ export default function ProfileSetup() {
       if (error) throw error
       if (data) setMyInviteCode(data)
     } catch (err: any) {
-      setCustomAlert({ 
-        visible: true, 
+      showAlert({ 
         title: '코드 발급 실패', 
         message: err.message || '알 수 없는 오류가 발생했습니다.' 
       })
@@ -107,9 +104,9 @@ export default function ProfileSetup() {
     setLoading(true)
     const { error } = await supabase.from('couples').update({ wedding_date: weddingDate }).eq('id', userProfile.couple_id)
     if(error) {
-       setCustomAlert({ visible: true, title: '오류', message: '저장에 실패했습니다: ' + error.message })
+       showAlert({ title: '오류', message: '저장에 실패했습니다: ' + error.message })
     } else {
-       setCustomAlert({ visible: true, title: '저장 완료', message: '우리의 결혼일이 성공적으로 저장되었습니다. 🎉' })
+       showAlert({ title: '저장 완료', message: '우리의 결혼일이 성공적으로 저장되었습니다. 🎉' })
     }
     setLoading(false)
   }
@@ -121,12 +118,17 @@ export default function ProfileSetup() {
       setLinking(true)
       const { data, error } = await supabase.rpc('get_partner_info_by_code', { p_invite_code: inputCode })
       if (error) throw error
+      
       if (data) {
-        setPartnerToConfirm({ nickname: data.nickname, couple_id: data.couple_id })
+        showConfirm({
+          title: '파트너를 찾았습니다! 👩‍❤️‍👨',
+          message: `${data.nickname} 님과\n데이터를 연결하시겠습니까?`,
+          confirmText: '동의 및 연결',
+          onConfirm: () => handleConfirmLink(data.couple_id, data.nickname)
+        })
       }
     } catch (err: any) {
-      setCustomAlert({ 
-        visible: true, 
+      showAlert({ 
         title: '코드 조회 실패', 
         message: err.message || '상대방을 찾을 수 없습니다.' 
       })
@@ -136,28 +138,24 @@ export default function ProfileSetup() {
   }
 
   // 3. 최종 연동 동의 (매칭 합체)
-  const handleConfirmLink = async () => {
-    if (!partnerToConfirm) return
+  const handleConfirmLink = async (partnerCoupleId: string, partnerNickname: string) => {
     try {
       setLinking(true)
-      const { data, error: linkError } = await supabase.rpc('link_couple', { p_couple_id: partnerToConfirm.couple_id })
+      const { error: linkError } = await supabase.rpc('link_couple', { p_couple_id: partnerCoupleId })
       if (linkError) throw linkError
       
-      setCustomAlert({
-        visible: true,
+      showAlert({
         title: '연결 완료 🎉',
-        message: `성공적으로 ${partnerToConfirm.nickname} 님과 연결되었습니다!`
+        message: `성공적으로 ${partnerNickname} 님과 연결되었습니다!`
       })
-      setPartnerToConfirm(null)
       
-      // 알림 확인 후 이동 로직을 모달 닫기 쪽으로 넘기거나, 여기서 타이머 이동
+      // 알림 확인 후 이동
       setTimeout(() => {
         window.location.href = '/'
       }, 2000)
 
     } catch (err: any) {
-      setCustomAlert({
-        visible: true,
+      showAlert({
         title: '연결 오류',
         message: '연결 중 오류가 발생했습니다: ' + err.message
       })
@@ -350,7 +348,7 @@ export default function ProfileSetup() {
                {myInviteCode && (
                  <p className="text-xs text-pink-500 mt-2 font-medium cursor-pointer hover:underline" onClick={() => {
                    navigator.clipboard.writeText(myInviteCode);
-                   alert('코드가 클립보드에 복사되었습니다!');
+                   showAlert('코드가 클립보드에 복사되었습니다!');
                  }}>
                    복사하기 ✂️
                  </p>
@@ -379,57 +377,7 @@ export default function ProfileSetup() {
             </div>
           )}
 
-          {/* 파트너 확인 팝업 (모달) */}
-          {partnerToConfirm && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-              <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center items-center flex flex-col animate-in fade-in zoom-in duration-200">
-                <div className="w-16 h-16 bg-pink-100 rounded-full flex items-center justify-center text-3xl mb-4 border-4 border-white shadow-sm">
-                  👩‍❤️‍👨
-                </div>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">파트너를 찾았습니다!</h3>
-                <p className="text-gray-600 mb-6 leading-relaxed">
-                  <span className="font-bold text-pink-600 text-lg border-b-2 border-pink-200 pb-0.5">{partnerToConfirm.nickname}</span> 님과<br/>데이터를 연결하시겠습니까?
-                </p>
-                <div className="flex space-x-3 w-full">
-                   <button 
-                     onClick={() => setPartnerToConfirm(null)}
-                     disabled={linking}
-                     className="flex-1 py-3 bg-gray-100 text-gray-600 font-semibold rounded-xl hover:bg-gray-200 transition-colors"
-                   >
-                     취소
-                   </button>
-                   <button 
-                     onClick={handleConfirmLink}
-                     disabled={linking}
-                     className="flex-1 py-3 bg-pink-500 text-white font-semibold rounded-xl hover:bg-pink-600 transition-colors shadow-md shadow-pink-200"
-                   >
-                     {linking ? '연결 중...' : '동의 및 연결'}
-                   </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 커스텀 에러/알림 팝업 모달 */}
-          {customAlert.visible && (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-              <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center items-center flex flex-col animate-in fade-in zoom-in duration-200">
-                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-3xl mb-4 border-4 border-white shadow-sm">
-                   🚨
-                 </div>
-                 <h3 className="text-xl font-bold text-gray-800 mb-2">{customAlert.title}</h3>
-                 <p className="text-gray-600 mb-8 break-all leading-relaxed text-sm">
-                   {customAlert.message}
-                 </p>
-                 <button 
-                   onClick={() => setCustomAlert({ visible: false, title: '', message: '' })}
-                   className="w-full py-3 bg-gray-800 text-white font-semibold rounded-xl hover:bg-gray-700 transition-colors"
-                 >
-                   확인
-                 </button>
-              </div>
-            </div>
-          )}
+          {/* 커스텀 모달은 RootLayout의 ModalProvider에서 전역 관리되므로 로컬 팝업 컴포넌트 전체 삭제 완료 */}
         </div>
       </div>
     </div>

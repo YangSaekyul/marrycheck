@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, Wallet2, TrendingUp, AlertCircle, ShoppingBag, Utensils, Home as HomeIcon, Video, Settings2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useModal } from '@/contexts/ModalContext'
 import { createClient } from '@/utils/supabase/client'
 
 // 고정 카테고리 목록
@@ -23,6 +24,7 @@ interface Transaction {
 
 export default function BudgetPage() {
   const { userProfile } = useAuth()
+  const { showAlert } = useModal()
   const supabase = createClient()
 
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -39,6 +41,9 @@ export default function BudgetPage() {
   const [newTitle, setNewTitle] = useState('')
   const [newAmount, setNewAmount] = useState('')
   const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[3].name)
+
+  // 3. 뷰/수정 모달 상태
+  const [isViewingAll, setIsViewingAll] = useState(false)
 
   const fetchTransactions = async () => {
     if (!userProfile?.couple_id) {
@@ -87,7 +92,7 @@ export default function BudgetPage() {
 
     const newBudget = parseInt(newBudgetStr.replace(/,/g, ''), 10)
     if (isNaN(newBudget) || newBudget <= 0) {
-      alert('숫자로 된 올바른 총 예산 금액을 입력하세요.')
+      showAlert('숫자로 된 올바른 총 예산 금액을 입력하세요.')
       return
     }
 
@@ -98,7 +103,7 @@ export default function BudgetPage() {
       .eq('id', userProfile.couple_id)
 
     if (error) {
-      alert('저장 실패 (DB에 total_budget 컬럼이 필요합니다): ' + error.message)
+      showAlert('저장 실패 (DB에 total_budget 컬럼이 필요합니다): ' + error.message)
       // UI 강제 반영
       setTotalBudget(newBudget)
     } else {
@@ -111,17 +116,17 @@ export default function BudgetPage() {
   const handleAddTransaction = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newTitle.trim() || !newAmount) {
-      alert('지출처와 금액을 모두 입력해주세요.')
+      showAlert('지출처와 금액을 모두 입력해주세요.')
       return
     }
     if (!userProfile?.couple_id) {
-       alert('데이터 동기화가 필요합니다. 화면을 새로고침(F5)하시거나, 로그아웃 후 다시 로그인해주세요!')
+       showAlert({ title: '동기화 필요', message: '데이터 동기화가 필요합니다.\n화면을 새로고침(F5)하시거나, 다시 로그인해주세요!' })
        return
     }
 
     const amountNum = parseInt(newAmount.replace(/,/g, ''), 10)
     if (isNaN(amountNum) || amountNum <= 0) {
-      alert('올바른 금액을 입력하세요.')
+      showAlert('올바른 금액을 입력하세요.')
       return
     }
 
@@ -137,7 +142,7 @@ export default function BudgetPage() {
       })
 
     if (error) {
-      alert('저장 실패 (네트워크/DB 권한 확인): ' + error.message)
+      showAlert('저장 실패 (네트워크/DB 권한 확인): ' + error.message)
     } else {
       setNewTitle('')
       setNewAmount('')
@@ -207,7 +212,12 @@ export default function BudgetPage() {
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-800">카테고리별 현황</h2>
-            <button className="text-sm text-blue-500 font-medium hover:text-blue-600">수정</button>
+            <button 
+              onClick={() => showAlert('카테고리별 예산 변경 기능은 곧 출시될 예정입니다! 😊\n위쪽 "총 예산 우측 설정 버튼"으로 총액을 조절해주세요.')}
+              className="text-sm text-blue-500 font-medium hover:text-blue-600 transition-colors"
+            >
+              수정
+            </button>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {CATEGORIES.map(cat => {
@@ -242,7 +252,14 @@ export default function BudgetPage() {
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold text-gray-800">최근 지출 내역</h2>
-            <button className="text-sm text-gray-500 font-medium hover:text-gray-700">전체보기</button>
+            {transactions.length > 0 && (
+              <button 
+                onClick={() => setIsViewingAll(true)}
+                className="text-sm text-gray-500 font-medium hover:text-gray-700 transition-colors"
+              >
+                전체보기
+              </button>
+            )}
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden min-h-[140px]">
             {isLoading ? (
@@ -265,8 +282,8 @@ export default function BudgetPage() {
                  </button>
               </div>
             ) : (
-              transactions.map((tx, idx) => (
-                <div key={tx.id} className={`flex items-center justify-between p-4 ${idx !== transactions.length -1 ? 'border-b border-gray-50' : ''}`}>
+              transactions.slice(0, 5).map((tx, idx) => (
+                <div key={tx.id} className={`flex items-center justify-between p-4 ${idx !== Math.min(transactions.length, 5) - 1 ? 'border-b border-gray-50' : ''}`}>
                   <div className="flex items-center space-x-4">
                     <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center">
                       <TrendingUp size={18} className="text-gray-400" />
@@ -350,6 +367,35 @@ export default function BudgetPage() {
               </div>
            </form>
          </div>
+      )}
+
+      {/* 3. 전체보기 (Full Screen Modal) */}
+      {isViewingAll && (
+        <div className="fixed inset-0 z-50 bg-white flex flex-col animate-in slide-in-from-bottom-5">
+           <div className="flex items-center justify-between px-6 pt-12 pb-4 border-b border-gray-100 bg-white sticky top-0">
+             <h2 className="text-xl font-bold text-gray-800">모든 지출 내역</h2>
+             <button onClick={() => setIsViewingAll(false)} className="text-gray-500 hover:text-gray-800 text-sm font-bold px-3 py-1 bg-gray-100 rounded-lg">닫기</button>
+           </div>
+           
+           <div className="flex-1 overflow-y-auto px-6 py-6 space-y-3 pb-24 h-full">
+              {transactions.map(tx => (
+                <div key={tx.id} className="flex items-center justify-between p-4 bg-gray-50/80 rounded-2xl border border-gray-100/50">
+                  <div className="flex items-center space-x-4">
+                    <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm">
+                      <TrendingUp size={18} className="text-blue-500" />
+                    </div>
+                    <div>
+                      <h4 className="text-[15px] font-bold text-gray-800 tracking-tight">{tx.title}</h4>
+                      <p className="text-xs text-gray-500 mt-1">{tx.date} • {tx.category}</p>
+                    </div>
+                  </div>
+                  <div className="text-sm font-bold text-gray-800">
+                    -{formatCurrency(tx.amount)}
+                  </div>
+                </div>
+              ))}
+           </div>
+        </div>
       )}
 
       {/* FAB */}

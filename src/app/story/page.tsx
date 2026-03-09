@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Plus, Camera, MapPin, Heart, Share2, MessageCircle } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useModal } from '@/contexts/ModalContext'
 import { createClient } from '@/utils/supabase/client'
 
 interface Story {
@@ -15,6 +16,7 @@ interface Story {
 
 export default function StoryPage() {
   const { userProfile } = useAuth()
+  const { showAlert } = useModal()
   const supabase = createClient()
   
   const [stories, setStories] = useState<Story[]>([])
@@ -24,6 +26,9 @@ export default function StoryPage() {
   const [isAdding, setIsAdding] = useState(false)
   const [newContent, setNewContent] = useState('')
   const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0])
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
 
   const fetchStories = async () => {
     if (!userProfile?.couple_id) return
@@ -45,25 +50,63 @@ export default function StoryPage() {
     fetchStories()
   }, [userProfile?.couple_id])
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setUploadFile(file)
+      setPreviewUrl(URL.createObjectURL(file))
+    }
+  }
+
   const handleAddStory = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newContent.trim() || !userProfile?.couple_id) return
+    setIsUploading(true)
 
-    const { error } = await supabase
-      .from('stories')
-      .insert({
-        couple_id: userProfile.couple_id,
-        content: newContent,
-        date: newDate,
-        image_url: '' // TODO: 이미지 업로드 연동 전까지 빈 문자열 혹는 null
-      })
+    try {
+      let imageUrl = ''
 
-    if (error) {
-      alert('스토리 등록 실패: ' + error.message)
-    } else {
+      // 1. 이미지 파일이 있으면 Storage에 업로드
+      if (uploadFile) {
+        const fileExt = uploadFile.name.split('.').pop()
+        const fileName = `${userProfile.couple_id}/${Math.random()}.${fileExt}`
+        
+        const { error: uploadError } = await supabase.storage
+          .from('stories')
+          .upload(fileName, uploadFile)
+
+        if (uploadError) throw uploadError
+
+        // 2. 업로드된 파일의 Public URL 가져오기
+        const { data: urlData } = supabase.storage
+          .from('stories')
+          .getPublicUrl(fileName)
+          
+        imageUrl = urlData.publicUrl
+      }
+
+      // 3. DB에 스토리 기록
+      const { error: insertError } = await supabase
+        .from('stories')
+        .insert({
+          couple_id: userProfile.couple_id,
+          content: newContent,
+          date: newDate,
+          image_url: imageUrl || null
+        })
+
+      if (insertError) throw insertError
+
       setNewContent('')
+      setUploadFile(null)
+      setPreviewUrl(null)
       setIsAdding(false)
       fetchStories()
+
+    } catch (err: any) {
+      showAlert('스토리 등록 실패: ' + err.message)
+    } finally {
+      setIsUploading(false)
     }
   }
   return (
@@ -167,10 +210,34 @@ export default function StoryPage() {
                 />
               </div>
 
-              <div className="flex space-x-3 pt-2">
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">추억의 사진 (선택)</label>
+                <div className="flex items-center space-x-4">
+                  <label className="flex flex-col items-center justify-center w-24 h-24 bg-gray-50 border-2 border-gray-200 border-dashed rounded-xl cursor-pointer hover:bg-gray-100 transition-colors">
+                    <div className="flex flex-col items-center justify-center">
+                      <Camera size={24} className="text-gray-400 mb-1" />
+                    </div>
+                    <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
+                  </label>
+                  {previewUrl && (
+                    <div className="relative w-24 h-24 rounded-xl overflow-hidden border border-gray-200">
+                      <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                      <button 
+                        type="button"
+                        onClick={() => { setUploadFile(null); setPreviewUrl(null); }}
+                        className="absolute top-1 right-1 w-5 h-5 bg-black/50 text-white rounded-full flex items-center justify-center text-xs"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex space-x-3 pt-4">
                  <button type="button" onClick={() => setIsAdding(false)} className="flex-1 py-3 text-gray-500 font-semibold bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">취소</button>
-                 <button type="submit" disabled={!newContent.trim()} className="flex-1 py-3 text-white font-semibold flex items-center justify-center space-x-1 bg-gradient-to-r from-purple-500 to-pink-500 disabled:opacity-50 rounded-xl hover:shadow-lg transition-all">
-                   저장하기
+                 <button type="submit" disabled={!newContent.trim() || isUploading} className="flex-1 py-3 text-white font-semibold flex items-center justify-center space-x-1 bg-gradient-to-r from-purple-500 to-pink-500 disabled:opacity-50 rounded-xl hover:shadow-lg transition-all">
+                   {isUploading ? '업로드 중...' : '저장하기'}
                  </button>
               </div>
            </form>
