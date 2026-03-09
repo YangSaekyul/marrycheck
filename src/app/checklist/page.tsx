@@ -166,8 +166,9 @@ export default function ChecklistPage() {
             체크리스트 불러오는 중...
           </div>
         ) : filteredTodos.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-gray-500">할 일이 없습니다. 첫 웨딩 미션을 등록해보세요!</p>
+          <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
+            <p className="text-gray-500 font-medium mb-1">아직 등록된 할 일이 없어요!</p>
+            <p className="text-sm text-gray-400">하단의 <span className="text-pink-500 font-bold">+</span> 버튼을 눌러 새 미션을 입력하러 가볼까요? 👇</p>
           </div>
         ) : (
           filteredTodos.map((todo) => (

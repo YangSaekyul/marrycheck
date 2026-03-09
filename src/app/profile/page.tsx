@@ -29,6 +29,9 @@ export default function ProfileSetup() {
   const [inputCode, setInputCode] = useState('')
   const [partnerToConfirm, setPartnerToConfirm] = useState<{nickname: string, couple_id: string} | null>(null)
   const [linking, setLinking] = useState(false)
+  
+  // 에러 모달 상태
+  const [customAlert, setCustomAlert] = useState<{visible: boolean, title: string, message: string}>({ visible: false, title: '', message: '' })
 
   // userProfile이 뒤늦게 로딩될 경우 대비
   useEffect(() => {
@@ -73,7 +76,11 @@ export default function ProfileSetup() {
       if (error) throw error
       if (data) setMyInviteCode(data)
     } catch (err: any) {
-      alert('코드 발급에 실패했습니다: ' + err.message)
+      setCustomAlert({ 
+        visible: true, 
+        title: '코드 발급 실패', 
+        message: err.message || '알 수 없는 오류가 발생했습니다.' 
+      })
     } finally {
       setLinking(false)
     }
@@ -101,7 +108,11 @@ export default function ProfileSetup() {
         setPartnerToConfirm({ nickname: data.nickname, couple_id: data.couple_id })
       }
     } catch (err: any) {
-      alert(err.message || '상대방을 찾을 수 없습니다.')
+      setCustomAlert({ 
+        visible: true, 
+        title: '코드 조회 실패', 
+        message: err.message || '상대방을 찾을 수 없습니다.' 
+      })
     } finally {
       setLinking(false)
     }
@@ -115,12 +126,24 @@ export default function ProfileSetup() {
       const { data, error: linkError } = await supabase.rpc('link_couple', { p_couple_id: partnerToConfirm.couple_id })
       if (linkError) throw linkError
       
-      alert(`🎉 성공적으로 ${partnerToConfirm.nickname} 님과 연결되었습니다!`)
+      setCustomAlert({
+        visible: true,
+        title: '연결 완료 🎉',
+        message: `성공적으로 ${partnerToConfirm.nickname} 님과 연결되었습니다!`
+      })
       setPartnerToConfirm(null)
-      // 프로필 재로딩을 위해 새로고침 또는 메인 이동
-      window.location.href = '/'
+      
+      // 알림 확인 후 이동 로직을 모달 닫기 쪽으로 넘기거나, 여기서 타이머 이동
+      setTimeout(() => {
+        window.location.href = '/'
+      }, 2000)
+
     } catch (err: any) {
-      alert('연결 중 오류가 발생했습니다: ' + err.message)
+      setCustomAlert({
+        visible: true,
+        title: '연결 오류',
+        message: '연결 중 오류가 발생했습니다: ' + err.message
+      })
     } finally {
       setLinking(false)
     }
@@ -339,6 +362,27 @@ export default function ProfileSetup() {
                      {linking ? '연결 중...' : '동의 및 연결'}
                    </button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* 커스텀 에러/알림 팝업 모달 */}
+          {customAlert.visible && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center items-center flex flex-col animate-in fade-in zoom-in duration-200">
+                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-3xl mb-4 border-4 border-white shadow-sm">
+                   🚨
+                 </div>
+                 <h3 className="text-xl font-bold text-gray-800 mb-2">{customAlert.title}</h3>
+                 <p className="text-gray-600 mb-8 break-all leading-relaxed text-sm">
+                   {customAlert.message}
+                 </p>
+                 <button 
+                   onClick={() => setCustomAlert({ visible: false, title: '', message: '' })}
+                   className="w-full py-3 bg-gray-800 text-white font-semibold rounded-xl hover:bg-gray-700 transition-colors"
+                 >
+                   확인
+                 </button>
               </div>
             </div>
           )}

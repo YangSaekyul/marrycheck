@@ -1,12 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Wallet2, TrendingUp, AlertCircle, ShoppingBag, Utensils, Home as HomeIcon, Video } from 'lucide-react'
+import { Plus, Wallet2, TrendingUp, AlertCircle, ShoppingBag, Utensils, Home as HomeIcon, Video, Settings2 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { createClient } from '@/utils/supabase/client'
-
-// 고정 총 예산 (임시 기획)
-const TOTAL_BUDGET = 50000000
 
 // 고정 카테고리 목록
 const CATEGORIES = [
@@ -32,16 +29,36 @@ export default function BudgetPage() {
   const [totalSpent, setTotalSpent] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
 
-  // 폼 상태
+  // 1. 총 예산 상태 (DB 연동 또는 기본값)
+  const [totalBudget, setTotalBudget] = useState(50000000)
+  const [isSettingBudget, setIsSettingBudget] = useState(false)
+  const [newBudgetStr, setNewBudgetStr] = useState('')
+
+  // 2. 새 지출 폼 상태
   const [isAdding, setIsAdding] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newAmount, setNewAmount] = useState('')
   const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[3].name)
 
   const fetchTransactions = async () => {
-    if (!userProfile?.couple_id) return
+    if (!userProfile?.couple_id) {
+      setIsLoading(false)
+      return
+    }
     setIsLoading(true)
 
+    // A. 예산 정보 불러오기 시도 (total_budget 컬럼이 없다면 fallback 발동)
+    const { data: coupleData, error: coupleErr } = await supabase
+      .from('couples')
+      .select('total_budget')
+      .eq('id', userProfile.couple_id)
+      .single()
+      
+    if (!coupleErr && coupleData?.total_budget) {
+      setTotalBudget(coupleData.total_budget)
+    }
+
+    // B. 거래 내역 불러오기
     const { data, error } = await supabase
       .from('transactions')
       .select('*')
@@ -58,13 +75,48 @@ export default function BudgetPage() {
   }
 
   useEffect(() => {
-    fetchTransactions()
+    if (userProfile !== undefined) {
+      fetchTransactions()
+    }
   }, [userProfile?.couple_id])
+
+  // 총 예산 수정 제출
+  const handleUpdateBudget = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!userProfile?.couple_id) {
+      alert('커플 연동이 필요합니다.')
+      return
+    }
+    const newBudget = parseInt(newBudgetStr.replace(/,/g, ''), 10)
+    if (isNaN(newBudget) || newBudget <= 0) {
+      alert('숫자로 된 올바른 총 예산 금액을 입력하세요.')
+      return
+    }
+
+    // DB 업데이트 시도
+    const { error } = await supabase
+      .from('couples')
+      .update({ total_budget: newBudget })
+      .eq('id', userProfile.couple_id)
+
+    if (error) {
+      alert('저장 실패 (DB에 total_budget 컬럼이 필요합니다): ' + error.message)
+      // UI 강제 반영
+      setTotalBudget(newBudget)
+    } else {
+      setTotalBudget(newBudget)
+    }
+    setIsSettingBudget(false)
+  }
 
   // 지출 내역 추가
   const handleAddTransaction = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newTitle.trim() || !newAmount || !userProfile?.couple_id) return
+    if (!userProfile?.couple_id) {
+      alert('🔒 파트너와 초대 코드로 연결한 뒤 사용할 수 있어요!')
+      return
+    }
+    if (!newTitle.trim() || !newAmount) return
 
     const amountNum = parseInt(newAmount.replace(/,/g, ''), 10)
     if (isNaN(amountNum) || amountNum <= 0) {
@@ -84,7 +136,7 @@ export default function BudgetPage() {
       })
 
     if (error) {
-      alert('저장 실패: ' + error.message)
+      alert('저장 실패 (네트워크/DB 권한 확인): ' + error.message)
     } else {
       setNewTitle('')
       setNewAmount('')
@@ -93,7 +145,7 @@ export default function BudgetPage() {
     }
   }
 
-  const percentSpent = Math.round((totalSpent / TOTAL_BUDGET) * 100)
+  const percentSpent = totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0
   
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('ko-KR').format(amount) + '원'
@@ -105,9 +157,20 @@ export default function BudgetPage() {
       <div className="bg-gradient-to-br from-blue-500 to-indigo-600 px-6 pt-12 pb-24 rounded-b-[2.5rem] shadow-md relative">
         <h1 className="text-2xl font-bold text-white mb-6">스마트 예산 관리</h1>
         
-        <div className="text-white/80 text-sm font-medium mb-1">총 결혼 예산</div>
+        <div className="flex justify-between items-center mb-1">
+          <div className="text-white/80 text-sm font-medium">총 결혼 예산</div>
+          <button 
+             onClick={() => {
+                setNewBudgetStr(totalBudget.toString())
+                setIsSettingBudget(true)
+             }}
+             className="text-white/70 hover:text-white transition-colors"
+          >
+             <Settings2 size={16} />
+          </button>
+        </div>
         <div className="text-3xl font-bold text-white mb-6 flex items-center">
-          {formatCurrency(TOTAL_BUDGET)}
+          {formatCurrency(totalBudget)}
         </div>
 
         {/* Floating Summary Card */}
@@ -119,7 +182,7 @@ export default function BudgetPage() {
             </div>
             <div className="text-right">
               <div className="text-xs font-semibold text-blue-500 bg-blue-50 px-2 py-1 rounded-lg mb-1 inline-block">남은 예산</div>
-              <div className="text-sm font-bold text-gray-600">{formatCurrency(TOTAL_BUDGET - totalSpent)}</div>
+              <div className="text-sm font-bold text-gray-600">{formatCurrency(Math.max(0, totalBudget - totalSpent))}</div>
             </div>
           </div>
           
@@ -180,11 +243,16 @@ export default function BudgetPage() {
             <h2 className="text-lg font-bold text-gray-800">최근 지출 내역</h2>
             <button className="text-sm text-gray-500 font-medium hover:text-gray-700">전체보기</button>
           </div>
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden min-h-[140px]">
             {isLoading ? (
-              <div className="p-8 text-center text-sm text-gray-400 animate-pulse">지출 내역 로딩 중...</div>
+              <div className="p-8 text-center text-sm text-gray-400 animate-pulse flex flex-col items-center justify-center h-full space-y-2">
+                 <span>데이터를 불러오는 중...</span>
+              </div>
             ) : transactions.length === 0 ? (
-              <div className="p-8 text-center text-sm text-gray-400">아직 등록된 지출 내역이 없습니다.</div>
+              <div className="p-8 text-center bg-gray-50/50 flex flex-col items-center justify-center h-full">
+                 <p className="text-gray-500 font-medium mb-1">아직 등록된 지출 내역이 없어요!</p>
+                 <p className="text-sm text-gray-400">우측 하단의 <span className="text-blue-500 font-bold">+</span> 버튼을 눌러 새 지출을 기록하고 <br/> 예산 진행도를 확인하러 가볼까요? 👇</p>
+              </div>
             ) : (
               transactions.map((tx, idx) => (
                 <div key={tx.id} className={`flex items-center justify-between p-4 ${idx !== transactions.length -1 ? 'border-b border-gray-50' : ''}`}>
@@ -207,7 +275,31 @@ export default function BudgetPage() {
         </section>
       </div>
 
-       {/* 추가 폼 모달 */}
+       {/* 1. 예산 설정 모달 */}
+       {isSettingBudget && (
+         <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm">
+           <form onSubmit={handleUpdateBudget} className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-10">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">총 예산 수정</h3>
+              <p className="text-xs text-gray-500 mb-6">계획하고 있는 전체 결혼 예산 금액을 입력해주세요.</p>
+              
+              <div className="mb-6">
+                 <label className="text-xs font-semibold text-gray-600 mb-1 block">새로운 예산 (원)</label>
+                 <input 
+                   autoFocus type="number" value={newBudgetStr} onChange={e => setNewBudgetStr(e.target.value)}
+                   placeholder="ex) 50000000" 
+                   className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg font-bold"
+                 />
+              </div>
+
+              <div className="flex space-x-3">
+                 <button type="button" onClick={() => setIsSettingBudget(false)} className="flex-1 py-3 text-gray-500 font-semibold bg-gray-100 rounded-xl hover:bg-gray-200">취소</button>
+                 <button type="submit" disabled={!newBudgetStr} className="flex-1 py-3 text-white font-semibold bg-blue-600 disabled:opacity-50 rounded-xl hover:bg-blue-700">변경 저장</button>
+              </div>
+           </form>
+         </div>
+       )}
+
+       {/* 2. 지출 추가 폼 모달 */}
        {isAdding && (
          <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center sm:p-4">
            <form onSubmit={handleAddTransaction} className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-10">
