@@ -110,7 +110,14 @@ export default function BudgetPage() {
   // 지출 내역 추가
   const handleAddTransaction = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!userProfile?.couple_id || !newTitle.trim() || !newAmount) return
+    if (!newTitle.trim() || !newAmount) {
+      alert('지출처와 금액을 모두 입력해주세요.')
+      return
+    }
+    if (!userProfile?.couple_id) {
+       alert('데이터 동기화가 필요합니다. 화면을 새로고침(F5)하시거나, 로그아웃 후 다시 로그인해주세요!')
+       return
+    }
 
     const amountNum = parseInt(newAmount.replace(/,/g, ''), 10)
     if (isNaN(amountNum) || amountNum <= 0) {
@@ -243,9 +250,19 @@ export default function BudgetPage() {
                  <span>데이터를 불러오는 중...</span>
               </div>
             ) : transactions.length === 0 ? (
-              <div className="p-8 text-center bg-gray-50/50 flex flex-col items-center justify-center h-full">
-                 <p className="text-gray-500 font-medium mb-1">아직 등록된 지출 내역이 없어요!</p>
-                 <p className="text-sm text-gray-400">우측 하단의 <span className="text-blue-500 font-bold">+</span> 버튼을 눌러 새 지출을 기록하고 <br/> 예산 진행도를 확인하러 가볼까요? 👇</p>
+              <div className="p-12 text-center bg-gray-50/50 flex flex-col items-center justify-center h-full">
+                 <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-4 text-blue-500">
+                   <Wallet2 size={24} />
+                 </div>
+                 <p className="text-gray-800 font-bold text-lg mb-2">아직 지출 내역이 없어요!</p>
+                 <p className="text-sm text-gray-500 mb-6">첫 번째 지출 기록을 추가하고<br/>우리 커플의 예산 관리를 시작해보세요.</p>
+                 <button 
+                   onClick={() => setIsAdding(true)}
+                   className="inline-flex items-center space-x-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors shadow-sm"
+                 >
+                   <Plus size={18} />
+                   <span>첫 지출 기록하기</span>
+                 </button>
               </div>
             ) : (
               transactions.map((tx, idx) => (

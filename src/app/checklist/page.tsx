@@ -71,10 +71,16 @@ export default function ChecklistPage() {
     }
   }
 
-  // 3. 새로운 할 일 추가
   const handleAddTodo = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!userProfile?.couple_id || !newTitle.trim()) return
+    if (!newTitle.trim()) {
+      alert('할 일 내용을 입력해주세요.')
+      return
+    }
+    if (!userProfile?.couple_id) {
+       alert('데이터 동기화가 필요합니다. 화면을 새로고침(F5)하시거나, 로그아웃 후 다시 로그인해주세요!')
+       return
+    }
 
     const insertData: any = {
         title: newTitle,
@@ -176,9 +182,19 @@ export default function ChecklistPage() {
             체크리스트 불러오는 중...
           </div>
         ) : filteredTodos.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-2xl border border-dashed border-gray-200">
-            <p className="text-gray-500 font-medium mb-1">아직 등록된 할 일이 없어요!</p>
-            <p className="text-sm text-gray-400">하단의 <span className="text-pink-500 font-bold">+</span> 버튼을 눌러 새 미션을 입력하러 가볼까요? 👇</p>
+          <div className="text-center py-16 bg-white rounded-3xl border border-dashed border-gray-200 shadow-sm mt-4">
+            <div className="w-16 h-16 bg-pink-50 rounded-full flex items-center justify-center mx-auto mb-4 text-pink-500">
+              <Sparkles size={24} />
+            </div>
+            <p className="text-gray-800 font-bold text-lg mb-2">아직 등록된 할 일이 없어요!</p>
+            <p className="text-sm text-gray-500 mb-8">결혼 준비의 첫 걸음, 새로운 미션을 추가해볼까요?</p>
+            <button 
+              onClick={() => setIsAdding(true)}
+              className="inline-flex items-center space-x-2 bg-gray-900 text-white px-8 py-3.5 rounded-xl font-semibold hover:bg-gray-800 transition-colors shadow-md hover:shadow-lg hover:-translate-y-0.5"
+            >
+              <Plus size={20} />
+              <span>첫 할 일 작성하기</span>
+            </button>
           </div>
         ) : (
           filteredTodos.map((todo) => (
