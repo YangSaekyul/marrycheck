@@ -15,11 +15,13 @@ export default function Home() {
   const [todoCount, setTodoCount] = useState(0)
   const [txCount, setTxCount] = useState(0)
   
-  // 커플 공유 데이터 (대시보드용)
   const [dDay, setDDay] = useState<string | null>(null)
   const [totalBudget, setTotalBudget] = useState(0)
   const [totalSpent, setTotalSpent] = useState(0)
   const [nextTodo, setNextTodo] = useState<{title: string} | null>(null)
+  
+  // 생일 관련 상태
+  const [partnerBirthdate, setPartnerBirthdate] = useState<string | null>(null)
 
   // 1. 초기 라우팅 제어 (온보딩)
   useEffect(() => {
@@ -57,6 +59,18 @@ export default function Home() {
           else if (diffDays === 0) setDDay('D-Day')
           else setDDay(`D+${Math.abs(diffDays)}`)
         }
+      }
+
+      // 1-1) 파트너 정보(생일 등) 가져오기
+      const { data: partnerData } = await supabase
+        .from('users')
+        .select('birthdate, nickname')
+        .eq('couple_id', userProfile.couple_id)
+        .neq('id', user?.id || '')
+        .single()
+        
+      if (partnerData?.birthdate) {
+        setPartnerBirthdate(partnerData.birthdate)
       }
 
       // 2) 완료되지 않은 체크리스트 갯수 및 다음 일정(목록의 맨 앞 요소)
@@ -99,6 +113,30 @@ export default function Home() {
   const myName = userProfile?.nickname || '나'
   const partnerName = userProfile?.temp_partner_name || '파트너'
 
+  const getBirthdayDday = (birthStr: string, name: string) => {
+    if (!birthStr) return null
+    const today = new Date()
+    today.setHours(0,0,0,0)
+    
+    // 생일 문자열(ex: '1995-05-13') 에서 월,일만 추출해 올해 날짜로 만듦
+    const bDate = new Date(birthStr)
+    let nextBday = new Date(today.getFullYear(), bDate.getMonth(), bDate.getDate())
+    
+    // 이미 지났으면 내년으로
+    if (nextBday < today) {
+      nextBday.setFullYear(today.getFullYear() + 1)
+    }
+    
+    const diffTime = nextBday.getTime() - today.getTime()
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+    
+    if (diffDays === 0) return `🎉 오늘 ${name} 생일!`
+    return `${name} 생일 D-${diffDays}`
+  }
+
+  const myBdayText = userProfile?.birthdate ? getBirthdayDday(userProfile.birthdate, myName) : null
+  const partnerBdayText = partnerBirthdate ? getBirthdayDday(partnerBirthdate, partnerName) : null
+
   return (
     <main className="min-h-screen bg-gray-50 pb-20">
       {/* Hero Section */}
@@ -108,9 +146,13 @@ export default function Home() {
             <h1 className="text-2xl font-bold text-gray-800 tracking-tight">
               {myName} ❤️ {partnerName}
             </h1>
-            <p className="text-sm font-medium text-pink-600 mt-1">
-              {dDay ? `우리 결혼하는 날 ${dDay}` : '프로필에서 결혼 예정일을 설정해주세요 💍'}
-            </p>
+            <div className="mt-2 space-y-1">
+              <p className="text-sm font-medium text-pink-600 flex items-center">
+                 💍 {dDay ? `결혼식 ${dDay}` : '결혼 예정일을 설정해주세요'}
+              </p>
+              {myBdayText && <p className="text-xs font-semibold text-purple-500">🎂 {myBdayText}</p>}
+              {partnerBdayText && <p className="text-xs font-semibold text-blue-500">🎁 {partnerBdayText}</p>}
+            </div>
           </div>
           <div className="flex flex-col items-end space-y-2">
             <Link href="/profile" className="p-2 bg-white/50 hover:bg-white/80 rounded-full transition-colors">

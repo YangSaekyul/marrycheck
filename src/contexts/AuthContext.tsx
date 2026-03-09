@@ -211,35 +211,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
 
     // 2. public.users 테이블 업데이트 (실제 DB 매칭 및 저장용)
+    // - id가 이미 있을 확률이 높으므로 UPSERT 로 처리하여 무조건 들어가도록 강제함
     const { error: dbError } = await supabase
       .from('users')
-      .update({
+      .upsert({
+        id: user.id,
+        email: user.email,
         nickname: profileUpdate.nickname !== undefined ? profileUpdate.nickname : userProfile?.nickname,
         profile_image: profileUpdate.profile_image !== undefined ? profileUpdate.profile_image : userProfile?.profile_image,
         birthdate: profileUpdate.birthdate !== undefined ? profileUpdate.birthdate : userProfile?.birthdate,
+        gender: profileUpdate.gender !== undefined ? profileUpdate.gender : userProfile?.gender,
         role: profileUpdate.role !== undefined ? profileUpdate.role : userProfile?.role,
-        temp_partner_name: (profileUpdate as any).temp_partner_name, // Onboarding에서 추가함
+        temp_partner_name: (profileUpdate as any).temp_partner_name !== undefined ? (profileUpdate as any).temp_partner_name : userProfile?.temp_partner_name,
         updated_at: new Date().toISOString()
-      })
-      .eq('id', user.id)
+      }, { onConflict: 'id' })
 
     if (dbError) {
-       console.error('DB User update error:', dbError.message)
-       // 처음 가입 후 on_auth_user_created 트리거가 아직 안 돌았을 상황을 위해 UPSERT 처리
-       const { error: upsertError } = await supabase.from('users').upsert({
-          id: user.id,
-          email: user.email,
-          nickname: profileUpdate.nickname !== undefined ? profileUpdate.nickname : userProfile?.nickname,
-          profile_image: profileUpdate.profile_image !== undefined ? profileUpdate.profile_image : userProfile?.profile_image,
-          birthdate: profileUpdate.birthdate !== undefined ? profileUpdate.birthdate : userProfile?.birthdate,
-          role: profileUpdate.role !== undefined ? profileUpdate.role : userProfile?.role,
-          temp_partner_name: (profileUpdate as any).temp_partner_name
-       })
-       
-       if (upsertError) {
-         console.error('DB User upsert error:', upsertError.message)
-         throw new Error(dbError.message + ' / ' + upsertError.message)
-       }
+       console.error('DB User update/upsert error:', dbError.message)
+       throw new Error(dbError.message)
     }
 
     // 로컬 상태 동기화
