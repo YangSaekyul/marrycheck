@@ -9,15 +9,21 @@ export default function LoginForm() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  const { user, signInWithKakao } = useAuth()
+  const { user, userProfile, signInWithKakao } = useAuth()
   const router = useRouter()
 
-  // 로그인 성공 시 메인 화면으로 리다이렉트
+  // 로그인 성공 시 통과 여부 확인 후 리다이렉트
   useEffect(() => {
     if (user) {
-      router.push('/')
+      if (userProfile && userProfile.role) {
+        // 이미 롤(신부/신랑)이 정해진 완전한 가입자면 홈으로
+        router.push('/')
+      } else {
+        // 처음 로그인한 유저면 온보딩(정보입력) 페이지로
+        router.push('/onboarding')
+      }
     }
-  }, [user, router])
+  }, [user, userProfile, router])
 
   const handleKakaoLogin = async () => {
     setError('')

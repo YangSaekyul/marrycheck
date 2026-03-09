@@ -13,7 +13,7 @@ export default function Home() {
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login')
-    } else if (!loading && user && userProfile && (!userProfile.gender || !userProfile.age)) {
+    } else if (!loading && user && userProfile && (!userProfile.gender || !userProfile.birthdate)) {
       router.push('/profile')
     }
   }, [user, userProfile, loading, router])
@@ -26,6 +26,9 @@ export default function Home() {
     )
   }
 
+  const myName = userProfile?.nickname || '나'
+  const partnerName = userProfile?.temp_partner_name || '파트너'
+
   return (
     <main className="min-h-screen bg-gray-50 pb-20">
       {/* Hero Section */}
@@ -33,7 +36,7 @@ export default function Home() {
         <div className="flex justify-between items-start mb-6">
           <div>
             <h1 className="text-2xl font-bold text-gray-800 tracking-tight">
-              {userProfile?.gender === 'female' ? '지은' : '민수'} ❤️ {userProfile?.gender === 'female' ? '민수' : '지은'}
+              {myName} ❤️ {partnerName}
             </h1>
             <p className="text-sm font-medium text-pink-600 mt-1">우리 결혼하는 날 D-120</p>
           </div>

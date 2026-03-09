@@ -6,8 +6,13 @@ import { User } from '@supabase/supabase-js'
 
 interface UserProfile {
   email: string
+  nickname?: string
+  profile_image?: string
+  role?: 'bride' | 'groom' | null
+  couple_id?: string | null
   gender?: string
-  age?: number
+  birthdate?: string
+  temp_partner_name?: string
   createdAt: Date
   updatedAt: Date
 }
@@ -53,7 +58,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (currentUser) {
            const profile: UserProfile = {
              email: currentUser.email || '',
+             nickname: currentUser.user_metadata?.nickname || currentUser.user_metadata?.full_name || '',
+             profile_image: currentUser.user_metadata?.profile_image || currentUser.user_metadata?.avatar_url || '',
+             role: currentUser.user_metadata?.role || null,
+             couple_id: currentUser.user_metadata?.couple_id || null,
              gender: currentUser.user_metadata?.gender || 'female',
+             birthdate: currentUser.user_metadata?.birthdate,
+             temp_partner_name: currentUser.user_metadata?.temp_partner_name,
              createdAt: new Date(currentUser.created_at),
              updatedAt: new Date(currentUser.updated_at || currentUser.created_at),
            }
@@ -80,7 +91,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (currentUser) {
            const profile: UserProfile = {
              email: currentUser.email || '',
+             nickname: currentUser.user_metadata?.nickname || currentUser.user_metadata?.full_name || '',
+             profile_image: currentUser.user_metadata?.profile_image || currentUser.user_metadata?.avatar_url || '',
+             role: currentUser.user_metadata?.role || null,
+             couple_id: currentUser.user_metadata?.couple_id || null,
              gender: currentUser.user_metadata?.gender || 'female',
+             birthdate: currentUser.user_metadata?.birthdate,
+             temp_partner_name: currentUser.user_metadata?.temp_partner_name,
              createdAt: new Date(currentUser.created_at),
              updatedAt: new Date(currentUser.updated_at || currentUser.created_at),
            }
@@ -127,18 +144,51 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   const updateProfile = async (profileUpdate: Partial<UserProfile>) => {
-    if (!user || !userProfile) return
+    if (!user) return
     
-    // Supabase User Metadata 업데이트
-    const { error } = await supabase.auth.updateUser({
+    // 1. Supabase User Metadata 업데이트 (빠른 UI 연동용)
+    const { error: authError } = await supabase.auth.updateUser({
       data: profileUpdate
     })
 
-    if (error) {
-      console.error('Profile update error:', error.message)
+    if (authError) {
+      console.error('Auth Metadata update error:', authError.message)
       return
     }
 
+    // 2. public.users 테이블 업데이트 (실제 DB 매칭 및 저장용)
+    const { error: dbError } = await supabase
+      .from('users')
+      .update({
+        nickname: profileUpdate.nickname !== undefined ? profileUpdate.nickname : userProfile?.nickname,
+        profile_image: profileUpdate.profile_image !== undefined ? profileUpdate.profile_image : userProfile?.profile_image,
+        birthdate: profileUpdate.birthdate !== undefined ? profileUpdate.birthdate : userProfile?.birthdate,
+        role: profileUpdate.role !== undefined ? profileUpdate.role : userProfile?.role,
+        temp_partner_name: (profileUpdate as any).temp_partner_name, // Onboarding에서 추가함
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', user.id)
+
+    if (dbError) {
+       console.error('DB User update error:', dbError.message)
+       // 처음 가입 후 on_auth_user_created 트리거가 아직 안 돌았을 상황을 위해 UPSERT 처리
+       const { error: upsertError } = await supabase.from('users').upsert({
+          id: user.id,
+          email: user.email,
+          nickname: profileUpdate.nickname !== undefined ? profileUpdate.nickname : userProfile?.nickname,
+          profile_image: profileUpdate.profile_image !== undefined ? profileUpdate.profile_image : userProfile?.profile_image,
+          birthdate: profileUpdate.birthdate !== undefined ? profileUpdate.birthdate : userProfile?.birthdate,
+          role: profileUpdate.role !== undefined ? profileUpdate.role : userProfile?.role,
+          temp_partner_name: (profileUpdate as any).temp_partner_name
+       })
+       
+       if (upsertError) {
+         console.error('DB User upsert error:', upsertError.message)
+         throw new Error(dbError.message + ' / ' + upsertError.message)
+       }
+    }
+
+    // 로컬 상태 동기화
     setUserProfile(prev => prev ? { ...prev, ...profileUpdate, updatedAt: new Date() } : null)
   }
 
