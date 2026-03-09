@@ -2,14 +2,20 @@
 
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { ChevronRight, CalendarHeart, CheckCircle2, Wallet, ImageIcon, Settings } from 'lucide-react'
 import Link from 'next/link'
+import { createClient } from '@/utils/supabase/client'
 
 export default function Home() {
   const { user, userProfile, loading, logout } = useAuth()
   const router = useRouter()
+  const supabase = createClient()
 
+  const [todoCount, setTodoCount] = useState(0)
+  const [txCount, setTxCount] = useState(0)
+
+  // 1. 초기 라우팅 제어 (온보딩)
   useEffect(() => {
     if (!loading && !user) {
       router.push('/login')
@@ -17,6 +23,31 @@ export default function Home() {
       router.push('/profile')
     }
   }, [user, userProfile, loading, router])
+
+  // 2. 대시보드 브리핑 데이터(통계) 패칭
+  useEffect(() => {
+    if (!userProfile?.couple_id) return
+
+    const fetchDashboardData = async () => {
+      // 1) 완료되지 않은 체크리스트 갯수
+      const { count: tCount } = await supabase
+        .from('todos')
+        .select('*', { count: 'exact', head: true })
+        .eq('couple_id', userProfile.couple_id)
+        .eq('completed', false)
+      
+      // 2) 등록된 지출 내역 전체 건수 (또는 최근 N일)
+      const { count: xCount } = await supabase
+        .from('transactions')
+        .select('*', { count: 'exact', head: true })
+        .eq('couple_id', userProfile.couple_id)
+
+      setTodoCount(tCount || 0)
+      setTxCount(xCount || 0)
+    }
+
+    fetchDashboardData()
+  }, [userProfile?.couple_id])
 
   if (loading || !user) {
     return (
@@ -53,12 +84,11 @@ export default function Home() {
         {/* Progress Card */}
         <div className="bg-white rounded-2xl p-5 shadow-sm border border-pink-100/50">
           <div className="flex justify-between items-center mb-3">
-            <span className="text-sm font-medium text-gray-600">결혼 준비 진행률</span>
-            <span className="text-lg font-bold text-pink-600">45%</span>
+            <span className="text-sm font-medium text-gray-600">결혼 준비의 시작을 응원해요!</span>
           </div>
-          <div className="w-full h-2.5 bg-gray-100 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-pink-400 to-purple-400 w-[45%] rounded-full transition-all duration-1000 ease-out"></div>
-          </div>
+          <p className="text-xs text-gray-500 mt-1 pb-1">
+            체크리스트와 지출 내역을 커플과 공유하세요.
+          </p>
         </div>
       </div>
 
@@ -77,10 +107,10 @@ export default function Home() {
                 <div className="p-2 bg-pink-50 rounded-xl">
                   <CheckCircle2 size={18} className="text-pink-500" />
                 </div>
-                <span className="text-sm font-medium text-gray-700">할 일</span>
+                <span className="text-sm font-medium text-gray-700">남은 할 일</span>
               </div>
               <p className="text-2xl font-bold text-gray-800">
-                3<span className="text-sm font-normal text-gray-400 ml-1">개</span>
+                {todoCount}<span className="text-sm font-normal text-gray-400 ml-1">개</span>
               </p>
             </Link>
 
@@ -89,10 +119,10 @@ export default function Home() {
                 <div className="p-2 bg-blue-50 rounded-xl">
                   <Wallet size={18} className="text-blue-500" />
                 </div>
-                <span className="text-sm font-medium text-gray-700">예산 확인</span>
+                <span className="text-sm font-medium text-gray-700">지출 건수</span>
               </div>
               <p className="text-2xl font-bold text-gray-800 text-transparent bg-clip-text bg-gradient-to-r from-gray-800 to-gray-600">
-                1<span className="text-sm font-normal text-gray-400 ml-1">건</span>
+                {txCount}<span className="text-sm font-normal text-gray-400 ml-1">건</span>
               </p>
             </Link>
           </div>

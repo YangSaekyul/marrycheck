@@ -1,43 +1,71 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { Plus, Camera, MapPin, Heart, Share2, MessageCircle } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
+import { createClient } from '@/utils/supabase/client'
 
-const MOCK_STORIES = [
-  {
-    id: '1',
-    date: '2023. 10. 15',
-    d_day: 'D-120',
-    location: '강남 시그니처 웨딩홀',
-    content: '드디어 우리가 부부가 될 첫 번째 단추를 꿰었다! 상담하시는 매니저님도 너무 친절하시고, 채플홀의 따뜻한 분위기가 딱 우리가 원하던 느낌 ✨',
-    image: 'https://images.unsplash.com/photo-1519741497674-611481863552?auto=format&fit=crop&q=80&w=800',
-    likes: 12,
-    comments: 3,
-    tags: ['#웨딩홀투어', '#계약완료', '#채플웨딩']
-  },
-  {
-    id: '2',
-    date: '2023. 09. 28',
-    d_day: 'D-137',
-    location: '청담동 반지마을',
-    content: '우리의 웨딩 밴드 투어 💍 3군데 돌아보고 결정장애 올 뻔했지만... 결국 가장 심플하고 클래식한 디자인으로 결정했다. 빨리 나왔으면 좋겠어!',
-    image: 'https://images.unsplash.com/photo-1605100804763-247f66156e94?auto=format&fit=crop&q=80&w=800',
-    likes: 24,
-    comments: 5,
-    tags: ['#웨딩밴드', '#결혼반지']
-  },
-  {
-    id: '3',
-    date: '2023. 09. 10',
-    d_day: 'D-155',
-    location: '서울숲 레스토랑',
-    content: '양가 부모님 처음 모시고 식사하는 자리. 너무 떨렸지만 다들 화기애애하게 대화 나누셔서 마음이 놓였다. 든든한 가족이 두 배로 늘어나는 기분 👨‍👩‍👦‍👦',
-    likes: 38,
-    comments: 8,
-    tags: ['#상견례', '#화기애애', '#떨림']
-  }
-]
+interface Story {
+  id: string
+  couple_id: string
+  content: string
+  date: string
+  image_url?: string
+}
 
 export default function StoryPage() {
+  const { userProfile } = useAuth()
+  const supabase = createClient()
+  
+  const [stories, setStories] = useState<Story[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+
+  // 작성 폼 상태
+  const [isAdding, setIsAdding] = useState(false)
+  const [newContent, setNewContent] = useState('')
+  const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0])
+
+  const fetchStories = async () => {
+    if (!userProfile?.couple_id) return
+    setIsLoading(true)
+    const { data, error } = await supabase
+      .from('stories')
+      .select('*')
+      .eq('couple_id', userProfile.couple_id)
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false })
+
+    if (data && !error) {
+      setStories(data)
+    }
+    setIsLoading(false)
+  }
+
+  useEffect(() => {
+    fetchStories()
+  }, [userProfile?.couple_id])
+
+  const handleAddStory = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newContent.trim() || !userProfile?.couple_id) return
+
+    const { error } = await supabase
+      .from('stories')
+      .insert({
+        couple_id: userProfile.couple_id,
+        content: newContent,
+        date: newDate,
+        image_url: '' // TODO: 이미지 업로드 연동 전까지 빈 문자열 혹는 null
+      })
+
+    if (error) {
+      alert('스토리 등록 실패: ' + error.message)
+    } else {
+      setNewContent('')
+      setIsAdding(false)
+      fetchStories()
+    }
+  }
   return (
     <main className="min-h-screen bg-gray-50 pb-24">
       {/* Header */}
@@ -55,64 +83,57 @@ export default function StoryPage() {
       <div className="px-6 py-6 max-w-lg mx-auto">
         <div className="relative border-l-2 border-purple-100 ml-4 space-y-8 pb-8">
           
-          {MOCK_STORIES.map((story) => (
-            <div key={story.id} className="relative pl-6">
-              {/* Timeline Dot */}
-              <div className="absolute -left-[9px] top-6 w-4 h-4 rounded-full bg-purple-400 border-4 border-white shadow-sm" />
-              
-              {/* Date & D-Day */}
-              <div className="flex items-center space-x-2 mb-2 pt-5">
-                <span className="text-sm font-bold text-gray-800">{story.date}</span>
-                <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 text-xs font-semibold">
-                  {story.d_day}
-                </span>
-              </div>
-
-              {/* Story Card */}
-              <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden group hover:shadow-md transition-shadow">
+          {isLoading ? (
+             <div className="py-20 text-center text-sm font-medium text-gray-400 animate-pulse w-full ml-4">
+               우리의 추억을 불러오는 중...
+             </div>
+          ) : stories.length === 0 ? (
+             <div className="py-20 text-center text-sm font-medium text-gray-500 w-full ml-4">
+               첫 번째 스토리를 남겨주세요 💕
+             </div>
+          ) : (
+            stories.map((story) => (
+              <div key={story.id} className="relative pl-6">
+                {/* Timeline Dot */}
+                <div className="absolute -left-[9px] top-6 w-4 h-4 rounded-full bg-purple-400 border-4 border-white shadow-sm" />
                 
-                {/* Location */}
-                <div className="flex items-center space-x-1.5 px-5 py-3 border-b border-gray-50 bg-gray-50/50">
-                  <MapPin size={14} className="text-gray-400" />
-                  <span className="text-xs font-medium text-gray-600">{story.location}</span>
+                {/* Date */}
+                <div className="flex items-center space-x-2 mb-2 pt-5">
+                  <span className="text-sm font-bold text-gray-800">{story.date}</span>
                 </div>
 
-                {/* Optional Image */}
-                {story.image && (
-                  <div className="w-full h-48 sm:h-56 relative overflow-hidden">
-                    <img 
-                      src={story.image} 
-                      alt="Story moment" 
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
-                    />
+                {/* Story Card */}
+                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden group hover:shadow-sm transition-shadow">
+                  
+                  {/* Location Area (Hidden for now in real DB) */}
+                  <div className="flex items-center space-x-1.5 px-5 py-3 border-b border-gray-50 bg-gray-50/50 hidden">
+                    <MapPin size={14} className="text-gray-400" />
+                    <span className="text-xs font-medium text-gray-600">장소 추가 가능 (미구현)</span>
                   </div>
-                )}
+
+                  {/* Optional Image */}
+                  {story.image_url && (
+                    <div className="w-full h-48 sm:h-56 relative overflow-hidden">
+                      <img 
+                        src={story.image_url} 
+                        alt="Story moment" 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
+                      />
+                    </div>
+                  )}
 
                 {/* Content */}
                 <div className="p-5">
-                  <p className="text-sm text-gray-700 leading-relaxed mb-3">
+                  <p className="text-sm text-gray-700 leading-relaxed mb-3 whitespace-pre-wrap">
                     {story.content}
                   </p>
-                  
-                  {/* Tags */}
-                  <div className="flex flex-wrap gap-1.5 mb-4">
-                    {story.tags.map(tag => (
-                      <span key={tag} className="text-xs font-medium text-purple-500">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
 
                   {/* Actions */}
                   <div className="flex items-center justify-between pt-3 border-t border-gray-50">
                     <div className="flex space-x-4">
                       <button className="flex items-center space-x-1.5 text-gray-400 hover:text-pink-500 transition-colors">
                         <Heart size={18} />
-                        <span className="text-xs font-medium">{story.likes}</span>
-                      </button>
-                      <button className="flex items-center space-x-1.5 text-gray-400 hover:text-blue-500 transition-colors">
-                        <MessageCircle size={18} />
-                        <span className="text-xs font-medium">{story.comments}</span>
+                        <span className="text-xs font-medium">0</span>
                       </button>
                     </div>
                     <button className="text-gray-400 hover:text-gray-600">
@@ -122,14 +143,49 @@ export default function StoryPage() {
                 </div>
               </div>
             </div>
-          ))}
-
+          ))
+        )}
         </div>
       </div>
 
+      {/* 추가 폼 모달 */}
+      {isAdding && (
+         <div className="fixed inset-0 z-50 bg-black/60 flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm">
+           <form onSubmit={handleAddStory} className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-10 space-y-4">
+              <h3 className="text-lg font-bold text-gray-800 mb-2">새로운 추억 남기기</h3>
+              
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">날짜</label>
+                <input 
+                  type="date" 
+                  value={newDate} onChange={e => setNewDate(e.target.value)}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-400"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-600 mb-1 block">내용</label>
+                <textarea 
+                  autoFocus rows={4}
+                  value={newContent} onChange={e => setNewContent(e.target.value)}
+                  placeholder="오늘의 웨딩 준비는 어땠나요?" 
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-400 resize-none"
+                />
+              </div>
+
+              <div className="flex space-x-3 pt-2">
+                 <button type="button" onClick={() => setIsAdding(false)} className="flex-1 py-3 text-gray-500 font-semibold bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors">취소</button>
+                 <button type="submit" disabled={!newContent.trim()} className="flex-1 py-3 text-white font-semibold flex items-center justify-center space-x-1 bg-gradient-to-r from-purple-500 to-pink-500 disabled:opacity-50 rounded-xl hover:shadow-lg transition-all">
+                   저장하기
+                 </button>
+              </div>
+           </form>
+         </div>
+      )}
+
       {/* FAB - Add new memory */}
       <div className="fixed bottom-20 right-6 max-w-lg mx-auto z-20">
-        <button className="w-14 h-14 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all">
+        <button onClick={() => setIsAdding(true)} className="w-14 h-14 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all">
           <Plus size={24} />
         </button>
       </div>

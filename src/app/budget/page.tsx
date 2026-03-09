@@ -1,25 +1,99 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { Plus, Wallet2, TrendingUp, AlertCircle, ShoppingBag, Utensils, Home as HomeIcon, Video } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
+import { createClient } from '@/utils/supabase/client'
 
-const MOCK_BUDGET = {
-  total: 50000000,
-  spent: 18500000,
-  categories: [
-    { id: '1', name: '예식장/식대', allocated: 25000000, spent: 10000000, icon: Utensils, color: 'bg-orange-100 text-orange-600' },
-    { id: '2', name: '스드메', allocated: 5000000, spent: 3500000, icon: Video, color: 'bg-pink-100 text-pink-600' },
-    { id: '3', name: '혼수/가전', allocated: 15000000, spent: 5000000, icon: HomeIcon, color: 'bg-blue-100 text-blue-600' },
-    { id: '4', name: '기타/예비비', allocated: 5000000, spent: 0, icon: ShoppingBag, color: 'bg-purple-100 text-purple-600' },
-  ],
-  recentTransactions: [
-    { id: '1', date: '오늘', item: '웨딩홀 계약금', amount: 1000000, category: '예식장' },
-    { id: '2', date: '어제', item: '스튜디오 촬영 잔금', amount: 1500000, category: '스드메' },
-    { id: '3', date: '3일 전', item: '신혼집 냉장고 결제', amount: 2800000, category: '혼수' },
-  ]
+// 고정 총 예산 (임시 기획)
+const TOTAL_BUDGET = 50000000
+
+// 고정 카테고리 목록
+const CATEGORIES = [
+  { name: '예식장', icon: Utensils, color: 'bg-orange-100 text-orange-600', allocated: 25000000 },
+  { name: '스드메', icon: Video, color: 'bg-pink-100 text-pink-600', allocated: 5000000 },
+  { name: '혼수', icon: HomeIcon, color: 'bg-blue-100 text-blue-600', allocated: 15000000 },
+  { name: '기타', icon: ShoppingBag, color: 'bg-purple-100 text-purple-600', allocated: 5000000 },
+]
+
+interface Transaction {
+  id: string
+  title: string
+  amount: number
+  category: string
+  date: string
 }
 
 export default function BudgetPage() {
-  const percentSpent = Math.round((MOCK_BUDGET.spent / MOCK_BUDGET.total) * 100)
+  const { userProfile } = useAuth()
+  const supabase = createClient()
+
+  const [transactions, setTransactions] = useState<Transaction[]>([])
+  const [totalSpent, setTotalSpent] = useState(0)
+  const [isLoading, setIsLoading] = useState(true)
+
+  // 폼 상태
+  const [isAdding, setIsAdding] = useState(false)
+  const [newTitle, setNewTitle] = useState('')
+  const [newAmount, setNewAmount] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState(CATEGORIES[3].name)
+
+  const fetchTransactions = async () => {
+    if (!userProfile?.couple_id) return
+    setIsLoading(true)
+
+    const { data, error } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('couple_id', userProfile.couple_id)
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false })
+
+    if (data && !error) {
+      setTransactions(data)
+      const spent = data.reduce((acc, curr) => acc + (curr.amount || 0), 0)
+      setTotalSpent(spent)
+    }
+    setIsLoading(false)
+  }
+
+  useEffect(() => {
+    fetchTransactions()
+  }, [userProfile?.couple_id])
+
+  // 지출 내역 추가
+  const handleAddTransaction = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newTitle.trim() || !newAmount || !userProfile?.couple_id) return
+
+    const amountNum = parseInt(newAmount.replace(/,/g, ''), 10)
+    if (isNaN(amountNum) || amountNum <= 0) {
+      alert('올바른 금액을 입력하세요.')
+      return
+    }
+
+    const { error } = await supabase
+      .from('transactions')
+      .insert({
+        couple_id: userProfile.couple_id,
+        title: newTitle,
+        amount: amountNum,
+        category: selectedCategory,
+        type: 'expense',
+        date: new Date().toISOString().split('T')[0] // 오늘 날짜
+      })
+
+    if (error) {
+      alert('저장 실패: ' + error.message)
+    } else {
+      setNewTitle('')
+      setNewAmount('')
+      setIsAdding(false)
+      fetchTransactions() // 목록 갱신
+    }
+  }
+
+  const percentSpent = Math.round((totalSpent / TOTAL_BUDGET) * 100)
   
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('ko-KR').format(amount) + '원'
@@ -33,7 +107,7 @@ export default function BudgetPage() {
         
         <div className="text-white/80 text-sm font-medium mb-1">총 결혼 예산</div>
         <div className="text-3xl font-bold text-white mb-6 flex items-center">
-          {formatCurrency(MOCK_BUDGET.total)}
+          {formatCurrency(TOTAL_BUDGET)}
         </div>
 
         {/* Floating Summary Card */}
@@ -41,11 +115,11 @@ export default function BudgetPage() {
           <div className="flex justify-between items-end mb-4">
             <div>
               <div className="text-sm font-medium text-gray-500 mb-1">현재까지 지출</div>
-              <div className="text-2xl font-bold text-gray-800">{formatCurrency(MOCK_BUDGET.spent)}</div>
+              <div className="text-2xl font-bold text-gray-800">{formatCurrency(totalSpent)}</div>
             </div>
             <div className="text-right">
               <div className="text-xs font-semibold text-blue-500 bg-blue-50 px-2 py-1 rounded-lg mb-1 inline-block">남은 예산</div>
-              <div className="text-sm font-bold text-gray-600">{formatCurrency(MOCK_BUDGET.total - MOCK_BUDGET.spent)}</div>
+              <div className="text-sm font-bold text-gray-600">{formatCurrency(TOTAL_BUDGET - totalSpent)}</div>
             </div>
           </div>
           
@@ -72,16 +146,21 @@ export default function BudgetPage() {
             <button className="text-sm text-blue-500 font-medium hover:text-blue-600">수정</button>
           </div>
           <div className="grid grid-cols-2 gap-3">
-            {MOCK_BUDGET.categories.map(cat => {
-              const catPercent = Math.round((cat.spent / cat.allocated) * 100)
+            {CATEGORIES.map(cat => {
+              // 카테고리별 지출액 합산
+              const catSpent = transactions
+                .filter(t => t.category.includes(cat.name) || cat.name.includes(t.category))
+                .reduce((acc, curr) => acc + curr.amount, 0)
+              
+              const catPercent = Math.round((catSpent / cat.allocated) * 100)
               const Icon = cat.icon
               return (
-                <div key={cat.id} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden group">
+                <div key={cat.name} className="bg-white p-4 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden group">
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${cat.color}`}>
                     <Icon size={20} />
                   </div>
                   <h3 className="text-sm font-semibold text-gray-800 mb-1">{cat.name}</h3>
-                  <p className="text-xs text-gray-500 mb-3">{formatCurrency(cat.spent)} 사용</p>
+                  <p className="text-xs text-gray-500 mb-3">{formatCurrency(catSpent)} 사용</p>
                   
                   <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
                     <div 
@@ -102,29 +181,77 @@ export default function BudgetPage() {
             <button className="text-sm text-gray-500 font-medium hover:text-gray-700">전체보기</button>
           </div>
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-            {MOCK_BUDGET.recentTransactions.map((tx, idx) => (
-              <div key={tx.id} className={`flex items-center justify-between p-4 ${idx !== MOCK_BUDGET.recentTransactions.length -1 ? 'border-b border-gray-50' : ''}`}>
-                <div className="flex items-center space-x-4">
-                  <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center">
-                    <TrendingUp size={18} className="text-gray-400" />
+            {isLoading ? (
+              <div className="p-8 text-center text-sm text-gray-400 animate-pulse">지출 내역 로딩 중...</div>
+            ) : transactions.length === 0 ? (
+              <div className="p-8 text-center text-sm text-gray-400">아직 등록된 지출 내역이 없습니다.</div>
+            ) : (
+              transactions.map((tx, idx) => (
+                <div key={tx.id} className={`flex items-center justify-between p-4 ${idx !== transactions.length -1 ? 'border-b border-gray-50' : ''}`}>
+                  <div className="flex items-center space-x-4">
+                    <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center">
+                      <TrendingUp size={18} className="text-gray-400" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-semibold text-gray-800">{tx.title}</h4>
+                      <p className="text-xs text-gray-400 mt-0.5">{tx.date} • {tx.category}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h4 className="text-sm font-semibold text-gray-800">{tx.item}</h4>
-                    <p className="text-xs text-gray-400 mt-0.5">{tx.date} • {tx.category}</p>
+                  <div className="text-sm font-bold text-gray-700">
+                    -{formatCurrency(tx.amount)}
                   </div>
                 </div>
-                <div className="text-sm font-bold text-gray-700">
-                  -{formatCurrency(tx.amount)}
-                </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </section>
       </div>
 
+       {/* 추가 폼 모달 */}
+       {isAdding && (
+         <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center sm:p-4">
+           <form onSubmit={handleAddTransaction} className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-10">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">새 지출 기록하기</h3>
+              
+              <div className="space-y-4 mb-6">
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 mb-1 block">지출처 (내역)</label>
+                  <input 
+                    autoFocus type="text" value={newTitle} onChange={e => setNewTitle(e.target.value)}
+                    placeholder="예) 예식장 계약금" 
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 mb-1 block">금액 (원)</label>
+                  <input 
+                    type="number" value={newAmount} onChange={e => setNewAmount(e.target.value)}
+                    placeholder="1000000" 
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-gray-600 mb-1 block">카테고리</label>
+                  <select 
+                    value={selectedCategory} onChange={e => setSelectedCategory(e.target.value)}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {CATEGORIES.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex space-x-3">
+                 <button type="button" onClick={() => setIsAdding(false)} className="flex-1 py-3 text-gray-500 font-semibold bg-gray-100 rounded-xl">취소</button>
+                 <button type="submit" disabled={!newTitle.trim() || !newAmount} className="flex-1 py-3 text-white font-semibold bg-blue-600 disabled:opacity-50 rounded-xl hover:bg-blue-700">저장</button>
+              </div>
+           </form>
+         </div>
+      )}
+
       {/* FAB */}
       <div className="fixed bottom-20 right-6 max-w-lg mx-auto z-20">
-        <button className="w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all">
+        <button onClick={() => setIsAdding(true)} className="w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all">
           <Plus size={24} />
         </button>
       </div>

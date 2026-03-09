@@ -2,46 +2,94 @@
 
 import { useState, useEffect } from 'react'
 import { Plus, Search, CheckCircle2, Circle, Clock, MoreVertical, Sparkles } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
+import { createClient } from '@/utils/supabase/client'
 
-// Mock Data Type
+// Todo Data Type (Supabase Schema 기반)
 interface TodoItem {
   id: string
+  couple_id: string
   title: string
-  assignee: 'bride' | 'groom' | 'together'
-  isCompleted: boolean
-  dueDate?: string
+  assignee: 'bride' | 'groom' | 'both'
+  completed: boolean
   category: string
+  created_at: string
 }
-
-const MOCK_TODOS: TodoItem[] = [
-  { id: '1', title: '웨딩홀 투어 및 계약', assignee: 'together', isCompleted: true, dueDate: '2023-11-20', category: '예식장' },
-  { id: '2', title: '스드메 업체 선정', assignee: 'bride', isCompleted: false, dueDate: 'D-150', category: '스드메' },
-  { id: '3', title: '예물 시계 알아보기', assignee: 'groom', isCompleted: false, dueDate: 'D-100', category: '예물/예단' },
-  { id: '4', title: '신혼여행 패키지 예약', assignee: 'together', isCompleted: false, dueDate: 'D-90', category: '허니문' },
-  { id: '5', title: '청첩장 디자인 고르기', assignee: 'bride', isCompleted: false, dueDate: 'D-60', category: '초대' },
-]
 
 export default function ChecklistPage() {
   const [todos, setTodos] = useState<TodoItem[]>([])
-  const [filter, setFilter] = useState<'all' | 'bride' | 'groom' | 'together'>('all')
+  const [filter, setFilter] = useState<'all' | 'bride' | 'groom' | 'both'>('all')
+  const [isLoading, setIsLoading] = useState(true)
+  const [isAdding, setIsAdding] = useState(false)
+  const [newTitle, setNewTitle] = useState('')
+
+  const { userProfile } = useAuth()
+  const supabase = createClient()
+
+  // 1. Supabase에서 투두 리스트 불러오기
+  const fetchTodos = async () => {
+    if (!userProfile?.couple_id) return
+    setIsLoading(true)
+    
+    const { data, error } = await supabase
+      .from('todos')
+      .select('*')
+      .eq('couple_id', userProfile.couple_id)
+      .order('created_at', { ascending: false })
+
+    if (!error && data) {
+      setTodos(data as TodoItem[])
+    } else {
+      console.error('Failed to fetch todos:', error)
+    }
+    setIsLoading(false)
+  }
 
   useEffect(() => {
-    // Load from local storage or use mock data
-    const saved = localStorage.getItem('marrycheck_mock_todos')
-    if (saved) {
-      setTodos(JSON.parse(saved))
-    } else {
-      setTodos(MOCK_TODOS)
-      localStorage.setItem('marrycheck_mock_todos', JSON.stringify(MOCK_TODOS))
-    }
-  }, [])
+    fetchTodos()
+  }, [userProfile?.couple_id])
 
-  const toggleTodo = (id: string) => {
-    const updated = todos.map(todo =>
-      todo.id === id ? { ...todo, isCompleted: !todo.isCompleted } : todo
-    )
-    setTodos(updated)
-    localStorage.setItem('marrycheck_mock_todos', JSON.stringify(updated))
+  // 2. 투두 항목 완료 토글 (Real Backend)
+  const toggleTodo = async (id: string, currentCompleted: boolean) => {
+    // Optimistic UI 업데이트 (화면 먼저 반영)
+    setTodos(prev => prev.map(t => t.id === id ? { ...t, completed: !currentCompleted } : t))
+    
+    // 백엔드 통신
+    const { error } = await supabase
+      .from('todos')
+      .update({ completed: !currentCompleted })
+      .eq('id', id)
+      
+    if (error) {
+       // 롤백
+       console.error('Toggle error:', error)
+       fetchTodos()
+    }
+  }
+
+  // 3. 새로운 할 일 추가 (임시)
+  const handleAddTodo = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!newTitle.trim() || !userProfile?.couple_id) return
+
+    const { data, error } = await supabase
+      .from('todos')
+      .insert({
+        title: newTitle,
+        couple_id: userProfile.couple_id,
+        assignee: 'both',
+        category: '일반',
+      })
+      .select()
+      .single()
+
+    if (error) {
+       alert('할 일 추가 실패: ' + error.message)
+    } else if (data) {
+       setTodos([data as TodoItem, ...todos])
+       setNewTitle('')
+       setIsAdding(false)
+    }
   }
 
   const filteredTodos = todos.filter(todo => filter === 'all' || todo.assignee === filter)
@@ -50,7 +98,7 @@ export default function ChecklistPage() {
     switch (assignee) {
       case 'bride': return 'bg-pink-100 text-pink-700'
       case 'groom': return 'bg-blue-100 text-blue-700'
-      case 'together': return 'bg-purple-100 text-purple-700'
+      case 'both': return 'bg-purple-100 text-purple-700'
       default: return 'bg-gray-100 text-gray-700'
     }
   }
@@ -59,7 +107,7 @@ export default function ChecklistPage() {
     switch (assignee) {
       case 'bride': return '신부'
       case 'groom': return '신랑'
-      case 'together': return '함께'
+      case 'both': return '함께'
       default: return assignee
     }
   }
@@ -85,12 +133,12 @@ export default function ChecklistPage() {
             전체보기
           </button>
           <button
-            onClick={() => setFilter('together')}
+            onClick={() => setFilter('both')}
             className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-              filter === 'together' ? 'bg-purple-500 text-white' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
+              filter === 'both' ? 'bg-purple-500 text-white' : 'bg-purple-50 text-purple-600 hover:bg-purple-100'
             }`}
           >
-            함께 ({(todos.filter(t => t.assignee === 'together').length)})
+            함께 ({(todos.filter(t => t.assignee === 'both').length)})
           </button>
           <button
             onClick={() => setFilter('bride')}
@@ -112,64 +160,89 @@ export default function ChecklistPage() {
       </div>
 
       {/* Todo List */}
-      <div className="px-6 py-4 space-y-3">
-        {filteredTodos.map((todo) => (
-          <div
-            key={todo.id}
-            onClick={() => toggleTodo(todo.id)}
-            className={`group flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${
-              todo.isCompleted 
-                ? 'bg-gray-50 border-gray-100' 
-                : 'bg-white border-gray-200 hover:border-pink-200 shadow-sm'
-            }`}
-          >
-            <div className="flex items-center space-x-4">
-              <button className="flex-shrink-0 focus:outline-none">
-                {todo.isCompleted ? (
-                  <CheckCircle2 size={24} className="text-gray-300" />
-                ) : (
-                  <Circle size={24} className="text-gray-300 group-hover:text-pink-400 transition-colors" />
-                )}
-              </button>
-              
-              <div className="flex flex-col">
-                <span className={`text-base font-medium transition-colors ${
-                  todo.isCompleted ? 'text-gray-400 line-through' : 'text-gray-800'
-                }`}>
-                  {todo.title}
-                </span>
-                
-                <div className="flex items-center mt-1.5 space-x-2">
-                  <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold ${getAssigneeColor(todo.assignee)}`}>
-                    {getAssigneeLabel(todo.assignee)}
-                  </span>
-                  <span className="text-xs text-gray-400 font-medium">{todo.category}</span>
-                  {todo.dueDate && (
-                    <span className="flex items-center text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-                      <Clock size={10} className="mr-1" />
-                      {todo.dueDate}
-                    </span>
+      <div className="px-6 py-4 space-y-3 relative">
+        {isLoading ? (
+          <div className="text-center py-12 text-gray-400 font-medium animate-pulse">
+            체크리스트 불러오는 중...
+          </div>
+        ) : filteredTodos.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-500">할 일이 없습니다. 첫 웨딩 미션을 등록해보세요!</p>
+          </div>
+        ) : (
+          filteredTodos.map((todo) => (
+            <div
+              key={todo.id}
+              onClick={() => toggleTodo(todo.id, todo.completed)}
+              className={`group flex items-center justify-between p-4 rounded-2xl border transition-all cursor-pointer ${
+                todo.completed 
+                  ? 'bg-gray-50 border-gray-100' 
+                  : 'bg-white border-gray-200 shadow-sm'
+              }`}
+            >
+              <div className="flex items-center space-x-4">
+                <button className="flex-shrink-0 focus:outline-none">
+                  {todo.completed ? (
+                    <CheckCircle2 size={24} className="text-pink-500/50" />
+                  ) : (
+                    <Circle size={24} className="text-gray-300" />
                   )}
+                </button>
+                
+                <div className="flex flex-col">
+                  <span className={`text-base font-medium transition-colors ${
+                    todo.completed ? 'text-gray-400 line-through' : 'text-gray-800'
+                  }`}>
+                    {todo.title}
+                  </span>
+                  
+                  <div className="flex items-center mt-1.5 space-x-2">
+                    <span className={`text-[10px] px-2 py-0.5 rounded-md font-semibold ${getAssigneeColor(todo.assignee)}`}>
+                      {getAssigneeLabel(todo.assignee)}
+                    </span>
+                    <span className="text-xs text-gray-400 font-medium">{todo.category}</span>
+                  </div>
                 </div>
               </div>
+              
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation()
+                  // TODO: 수정/삭제 메뉴 구현
+                }}
+                className="text-gray-300 hover:text-gray-500 p-2"
+              >
+                <MoreVertical size={18} />
+              </button>
             </div>
-            
-            <button className="text-gray-300 hover:text-gray-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <MoreVertical size={18} />
-            </button>
-          </div>
-        ))}
-
-        {filteredTodos.length === 0 && (
-          <div className="text-center py-12">
-            <p className="text-gray-500">할 일이 없습니다.</p>
-          </div>
+          ))
         )}
       </div>
 
+      {/* 추가 폼 모달 */}
+      {isAdding && (
+         <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center sm:p-4">
+           <form onSubmit={handleAddTodo} className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-10">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">새로운 할 일 등록</h3>
+              <input 
+                 autoFocus
+                 type="text" 
+                 value={newTitle}
+                 onChange={e => setNewTitle(e.target.value)}
+                 placeholder="예) 청첩장 시안 확인하기" 
+                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl mb-4 focus:outline-none focus:ring-2 focus:ring-pink-500"
+              />
+              <div className="flex space-x-3">
+                 <button type="button" onClick={() => setIsAdding(false)} className="flex-1 py-3 text-gray-500 font-semibold bg-gray-100 rounded-xl">취소</button>
+                 <button type="submit" disabled={!newTitle.trim()} className="flex-1 py-3 text-white font-semibold bg-pink-500 disabled:opacity-50 rounded-xl">저장</button>
+              </div>
+           </form>
+         </div>
+      )}
+
       {/* FAB (Floating Action Button) */}
       <div className="fixed bottom-20 right-6 max-w-lg mx-auto z-20">
-        <button className="w-14 h-14 bg-gray-900 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-gray-800 hover:scale-105 active:scale-95 transition-all">
+        <button onClick={() => setIsAdding(true)} className="w-14 h-14 bg-gray-900 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-gray-800 hover:scale-105 active:scale-95 transition-all">
           <Plus size={24} />
         </button>
       </div>
