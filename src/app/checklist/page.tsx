@@ -27,6 +27,13 @@ export default function ChecklistPage() {
   const [newDueDate, setNewDueDate] = useState('')
   const [newDueTime, setNewDueTime] = useState('')
 
+  // 수정/삭제 메뉴 및 수정 폼 상태
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
+  const [editingTodo, setEditingTodo] = useState<TodoItem | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editDueDate, setEditDueDate] = useState('')
+  const [editDueTime, setEditDueTime] = useState('')
+
   const { userProfile } = useAuth()
   const supabase = createClient()
 
@@ -108,6 +115,60 @@ export default function ChecklistPage() {
     }
   }
 
+  // 4. 할 일 삭제
+  const handleDeleteTodo = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!window.confirm('정말 삭제하시겠습니까?')) return
+    setActiveMenuId(null)
+    
+    const { error } = await supabase.from('todos').delete().eq('id', id)
+    if (!error) {
+      setTodos(prev => prev.filter(t => t.id !== id))
+    } else {
+      alert('삭제 실패: ' + error.message)
+    }
+  }
+
+  // 5. 할 일 수정 모달 열기
+  const openEditModal = (todo: TodoItem, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setActiveMenuId(null)
+    setEditingTodo(todo)
+    setEditTitle(todo.title)
+    setEditDueDate(todo.due_date || '')
+    setEditDueTime(todo.due_time || '')
+  }
+
+  // 6. 할 일 수정 제출
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingTodo) return
+    if (!editTitle.trim()) {
+      alert('할 일 내용을 입력해주세요.')
+      return
+    }
+
+    const updateData: any = {
+      title: editTitle,
+      due_date: editDueDate || null,
+      due_time: editDueTime || null,
+    }
+
+    const { data, error } = await supabase
+      .from('todos')
+      .update(updateData)
+      .eq('id', editingTodo.id)
+      .select()
+      .single()
+
+    if (error) {
+      alert('수정 실패: ' + error.message)
+    } else if (data) {
+      setTodos(prev => prev.map(t => t.id === editingTodo.id ? (data as TodoItem) : t))
+      setEditingTodo(null)
+    }
+  }
+
   const filteredTodos = todos.filter(todo => filter === 'all' || todo.assignee === filter)
 
   const getAssigneeColor = (assignee: string) => {
@@ -129,7 +190,12 @@ export default function ChecklistPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 pb-24">
+    <main className="min-h-screen bg-gray-50 pb-24 relative">
+      {/* 팝업 오버레이 (바탕 클릭 시 메뉴 닫힘용) */}
+      {activeMenuId && (
+        <div className="fixed inset-0 z-20" onClick={() => setActiveMenuId(null)}></div>
+      )}
+
       {/* Header */}
       <div className="bg-white px-6 pt-12 pb-4 sticky top-0 z-10 border-b border-gray-100 shadow-sm">
         <h1 className="text-2xl font-bold text-gray-800">투게더 체크리스트</h1>
@@ -239,15 +305,35 @@ export default function ChecklistPage() {
                 </div>
               </div>
               
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation()
-                  // TODO: 수정/삭제 메뉴 구현
-                }}
-                className="text-gray-300 hover:text-gray-500 p-2"
-              >
-                <MoreVertical size={18} />
-              </button>
+              <div className="relative z-30">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setActiveMenuId(activeMenuId === todo.id ? null : todo.id)
+                  }}
+                  className="text-gray-300 hover:text-gray-500 p-2 focus:outline-none"
+                >
+                  <MoreVertical size={18} />
+                </button>
+                
+                {/* 우측 메뉴 팝업 */}
+                {activeMenuId === todo.id && (
+                  <div className="absolute right-0 top-10 mt-1 w-24 bg-white rounded-xl shadow-lg border border-gray-100 py-1 animate-in fade-in zoom-in duration-200">
+                    <button 
+                      onClick={(e) => openEditModal(todo, e)} 
+                      className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 font-medium"
+                    >
+                      기한 수정
+                    </button>
+                    <button 
+                      onClick={(e) => handleDeleteTodo(todo.id, e)} 
+                      className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 font-medium"
+                    >
+                      삭제
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           ))
         )}
@@ -287,6 +373,45 @@ export default function ChecklistPage() {
               <div className="flex space-x-3">
                  <button type="button" onClick={() => setIsAdding(false)} className="flex-1 py-3 text-gray-500 font-semibold bg-gray-100 rounded-xl">취소</button>
                  <button type="submit" disabled={!newTitle.trim()} className="flex-1 py-3 text-white font-semibold bg-pink-500 disabled:opacity-50 rounded-xl">저장</button>
+              </div>
+           </form>
+         </div>
+      )}
+
+      {/* 수정 폼 모달 */}
+      {editingTodo && (
+         <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center sm:p-4 animate-in fade-in duration-200">
+           <form onSubmit={handleEditSubmit} className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-2xl p-6 shadow-2xl animate-in slide-in-from-bottom-5">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">할 일 수정</h3>
+              <input 
+                 autoFocus
+                 type="text" 
+                 value={editTitle}
+                 onChange={e => setEditTitle(e.target.value)}
+                 placeholder="예) 청첩장 시안 확인하기" 
+                 className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl mb-4 focus:outline-none focus:ring-2 focus:ring-pink-500"
+              />
+              <div className="flex space-x-3 mb-6">
+                 <div className="flex-1">
+                   <label className="text-xs font-semibold text-gray-500 mb-1 block">목표 날짜</label>
+                   <input 
+                     type="date" 
+                     value={editDueDate} onChange={e => setEditDueDate(e.target.value)}
+                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm text-gray-700 font-medium"
+                   />
+                 </div>
+                 <div className="flex-1">
+                   <label className="text-xs font-semibold text-gray-500 mb-1 block">시간 (선택)</label>
+                   <input 
+                     type="time" 
+                     value={editDueTime} onChange={e => setEditDueTime(e.target.value)}
+                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm text-gray-700 font-medium"
+                   />
+                 </div>
+              </div>
+              <div className="flex space-x-3">
+                 <button type="button" onClick={() => setEditingTodo(null)} className="flex-1 py-3 text-gray-500 font-semibold bg-gray-100 rounded-xl">취소</button>
+                 <button type="submit" disabled={!editTitle.trim()} className="flex-1 py-3 text-white font-semibold bg-pink-500 disabled:opacity-50 rounded-xl hover:bg-pink-600 transition-colors">저장</button>
               </div>
            </form>
          </div>
