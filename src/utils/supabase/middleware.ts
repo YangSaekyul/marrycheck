@@ -28,7 +28,9 @@ export async function updateSession(request: NextRequest) {
   )
 
   // refreshing the auth token
-  await supabase.auth.getUser()
+  // Use getSession instead of getUser for significantly faster Edge performance
+  // This avoids a network trip on every request, fixing MIDDLEWARE_INVOCATION_TIMEOUT
+  await supabase.auth.getSession()
 
   return supabaseResponse
 }
