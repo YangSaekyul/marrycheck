@@ -1,78 +1,36 @@
 # Marry Check
 
-결혼 준비의 모든 순간이 소중한 추억이 되도록
+결혼 준비 프로젝트의 단일 개발 저장소: https://github.com/YangSaekyul/marrycheck
 
-## 프로젝트 개요
+`marrycheck`, `marry-check`, `wedding-mate`, `Our-Wedding-Mate`의 코드와 이력을 이 저장소에서 관리합니다.
+기준 앱은 루트의 Next.js 앱이며, 이전 구현은 `legacy/`에서 참고합니다.
 
-Marry Check는 예비부부를 위한 디지털 sanctuary(안식처)입니다. 단순한 웨딩 플래너가 아닌, 두 사람의 결혼 준비 여정을 함께 공유하고 기록하는 경험을 제공합니다.
+## 기준 앱
 
-## 주요 기능
+- Next.js 15, React 18, TypeScript, Tailwind CSS
+- Supabase 인증·데이터 연동
+- 대시보드, 체크리스트, 예산, 스토리, 프로필·커플 연결 화면
+- 2026-11-17 통합 시 맥북의 체크리스트 미커밋 작업을 포함했습니다.
 
-### 1. 스마트 대시보드 (The Control Tower)
-
-- D-Day 카운터 및 커플 프로필
-- 통합 진행률 표시
-- 오늘의 브리핑
-
-### 2. 투게더 체크리스트 (The Shared Journey)
-
-- 실시간 동기화
-- 담당자 지정 (신부/신랑/함께)
-- 스마트 템플릿
-
-### 3. 스마트 예산 관리 (The Smart Wallet)
-
-- 커플 공유 가계부
-- 예산 리포트
-- 카테고리별 현황
-
-### 4. 타임라인 스토리 (The Memory Lane)
-
-- 자동 기록
-- 감성 체크인
-- 디지털 앨범
-
-## 기술 스택
-
-- **Frontend**: Next.js 14, React 18, TypeScript, Tailwind CSS
-- **Backend**: Firebase Firestore
-- **Deployment**: Vercel
-- **Authentication**: Firebase Auth (Kakao, Email)
-
-## 시작하기
+## 로컬 실행
 
 ```bash
-# 의존성 설치
-npm install
-
-# 개발 서버 실행
+npm ci
 npm run dev
-
-# 빌드
-npm run build
-
-# 프로덕션 실행
-npm start
 ```
 
-## 프로젝트 구조
+기존 프로젝트의 `.env.local`을 로컬에서 사용합니다. 인증 정보는 Git에 넣지 않습니다.
+실제 로그인과 데이터 저장에는 해당 Supabase 프로젝트 설정이 필요합니다.
 
+## 구조
+
+```text
+src/                 # 앞으로 수정할 기준 앱
+supabase/            # 기준 앱의 기존 스키마 파일
+legacy/              # 이전 앱 소스: 현재 앱 빌드에서 제외
+docs/                # 통합 근거와 파일 해시
 ```
-src/
-├── app/
-│   ├── layout.tsx
-│   ├── page.tsx
-│   └── globals.css
-├── components/
-└── lib/
-```
 
-## 기여하기
-
-이 프로젝트는 결혼 준비의 경험을 더 의미 있게 만들기 위해 만들어졌습니다. 기여를 환영합니다!
-
-## 라이선스
-
-MIT License# marrycheck
-
-# marrycheck
+구현별 인증 방식과 DB는 서로 달라 이번 작업은 저장소와 이력 통합입니다.
+기능이나 운영 DB를 자동으로 병합하지 않습니다.
+이전 프로젝트 구성과 원본 이력은 [legacy 안내](legacy/README.md)를 참고하세요.

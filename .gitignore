@@ -7,3 +7,11 @@ node_modules/
 /Users/yang/
 reference/
 .env.local
+# Repository consolidation: local settings and generated files
+.env*
+!.env.example
+.vercel/
+*.tsbuildinfo
+*.db
+*.sqlite
+__pycache__/

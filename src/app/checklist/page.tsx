@@ -27,6 +27,9 @@ export default function ChecklistPage() {
   const [newTitle, setNewTitle] = useState('')
   const [newDueDate, setNewDueDate] = useState('')
   const [newDueTime, setNewDueTime] = useState('')
+  const [newAssignee, setNewAssignee] = useState<'bride' | 'groom' | 'both'>('both')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [togglingIds, setTogglingIds] = useState<Set<string>>(new Set())
 
   // 수정/삭제 메뉴 및 수정 폼 상태
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
@@ -34,14 +37,19 @@ export default function ChecklistPage() {
   const [editTitle, setEditTitle] = useState('')
   const [editDueDate, setEditDueDate] = useState('')
   const [editDueTime, setEditDueTime] = useState('')
+  const [editAssignee, setEditAssignee] = useState<'bride' | 'groom' | 'both'>('both')
+  const [isEditSubmitting, setIsEditSubmitting] = useState(false)
 
-  const { userProfile } = useAuth()
+  const { userProfile, loading: authLoading } = useAuth()
   const { showAlert, showConfirm } = useModal()
   const supabase = createClient()
 
   // 1. Supabase에서 투두 리스트 불러오기
   const fetchTodos = async () => {
-    if (!userProfile?.couple_id) return
+    if (!userProfile?.couple_id) {
+       setIsLoading(false)
+       return
+    }
     setIsLoading(true)
     
     const { data, error } = await supabase
@@ -59,11 +67,15 @@ export default function ChecklistPage() {
   }
 
   useEffect(() => {
+    if (authLoading) return
     fetchTodos()
-  }, [userProfile?.couple_id])
+  }, [userProfile?.couple_id, authLoading])
 
   // 2. 투두 항목 완료 토글 (Real Backend)
   const toggleTodo = async (id: string, currentCompleted: boolean) => {
+    if (togglingIds.has(id)) return
+    setTogglingIds(prev => new Set(prev).add(id))
+
     // Optimistic UI 업데이트 (화면 먼저 반영)
     setTodos(prev => prev.map(t => t.id === id ? { ...t, completed: !currentCompleted } : t))
     
@@ -78,6 +90,12 @@ export default function ChecklistPage() {
        console.error('Toggle error:', error)
        fetchTodos()
     }
+    
+    setTogglingIds(prev => {
+      const newSet = new Set(prev)
+      newSet.delete(id)
+      return newSet
+    })
   }
 
   const handleAddTodo = async (e: React.FormEvent) => {
@@ -90,11 +108,14 @@ export default function ChecklistPage() {
        showAlert({ title: '동기화 필요', message: '데이터 동기화가 필요합니다.\n화면을 새로고침(F5)하시거나, 다시 로그인해주세요!' })
        return
     }
+    if (isSubmitting) return
+
+    setIsSubmitting(true)
 
     const insertData: any = {
         title: newTitle,
         couple_id: userProfile.couple_id,
-        assignee: 'both',
+        assignee: newAssignee,
         category: '일반',
     }
     if (newDueDate) insertData.due_date = newDueDate
@@ -113,8 +134,10 @@ export default function ChecklistPage() {
        setNewTitle('')
        setNewDueDate('')
        setNewDueTime('')
+       setNewAssignee('both')
        setIsAdding(false)
     }
+    setIsSubmitting(false)
   }
 
   // 4. 할 일 삭제 (커스텀 confirm 적용)
@@ -145,6 +168,7 @@ export default function ChecklistPage() {
     setEditTitle(todo.title)
     setEditDueDate(todo.due_date || '')
     setEditDueTime(todo.due_time || '')
+    setEditAssignee(todo.assignee || 'both')
   }
 
   // 6. 할 일 수정 제출
@@ -155,11 +179,15 @@ export default function ChecklistPage() {
       showAlert('할 일 내용을 입력해주세요.')
       return
     }
+    if (isEditSubmitting) return
+
+    setIsEditSubmitting(true)
 
     const updateData: any = {
       title: editTitle,
       due_date: editDueDate || null,
       due_time: editDueTime || null,
+      assignee: editAssignee,
     }
 
     const { data, error } = await supabase
@@ -175,6 +203,7 @@ export default function ChecklistPage() {
       setTodos(prev => prev.map(t => t.id === editingTodo.id ? (data as TodoItem) : t))
       setEditingTodo(null)
     }
+    setIsEditSubmitting(false)
   }
 
   const filteredTodos = todos.filter(todo => filter === 'all' || todo.assignee === filter)
@@ -260,14 +289,18 @@ export default function ChecklistPage() {
             <div className="w-16 h-16 bg-pink-50 rounded-full flex items-center justify-center mx-auto mb-4 text-pink-500">
               <Sparkles size={24} />
             </div>
-            <p className="text-gray-800 font-bold text-lg mb-2">아직 등록된 할 일이 없어요!</p>
-            <p className="text-sm text-gray-500 mb-8">결혼 준비의 첫 걸음, 새로운 미션을 추가해볼까요?</p>
+            <p className="text-gray-800 font-bold text-lg mb-2">
+              {userProfile?.couple_id ? '아직 등록된 할 일이 없어요!' : '배우자와 연결 후 첫 작성'}
+            </p>
+            <p className="text-sm text-gray-500 mb-8">
+              {userProfile?.couple_id ? '결혼 준비의 첫 걸음, 새로운 미션을 추가해볼까요?' : '커플 연결 시 체크리스트 관리가 가능해요!'}
+            </p>
             <button 
               onClick={() => setIsAdding(true)}
               className="inline-flex items-center space-x-2 bg-gray-900 text-white px-8 py-3.5 rounded-xl font-semibold hover:bg-gray-800 transition-colors shadow-md hover:shadow-lg hover:-translate-y-0.5"
             >
               <Plus size={20} />
-              <span>첫 할 일 작성하기</span>
+              <span>{userProfile?.couple_id ? '첫 할 일 작성하기' : '체크리스트 작성해보기'}</span>
             </button>
           </div>
         ) : (
@@ -371,17 +404,26 @@ export default function ChecklistPage() {
                  </div>
                  <div className="flex-1">
                    <label className="text-xs font-semibold text-gray-500 mb-1 block">시간 (선택)</label>
-                   <input 
-                     type="time" 
-                     value={newDueTime} onChange={e => setNewDueTime(e.target.value)}
-                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm text-gray-700 font-medium"
-                   />
+                    <input 
+                      type="time" 
+                      value={newDueTime} onChange={e => setNewDueTime(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm text-gray-700 font-medium"
+                    />
+                  </div>
+               </div>
+               {/* 담당자 지정 UI 추가 */}
+               <div className="mb-6">
+                 <label className="text-xs font-semibold text-gray-500 mb-2 block">담당자 지정</label>
+                 <div className="flex space-x-2">
+                   <button type="button" onClick={() => setNewAssignee('both')} className={`flex-1 py-2 text-sm rounded-xl font-medium transition-colors ${newAssignee === 'both' ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-gray-50 text-gray-500 border border-gray-100 hover:bg-gray-100'}`}>함께</button>
+                   <button type="button" onClick={() => setNewAssignee('bride')} className={`flex-1 py-2 text-sm rounded-xl font-medium transition-colors ${newAssignee === 'bride' ? 'bg-pink-100 text-pink-700 border border-pink-200' : 'bg-gray-50 text-gray-500 border border-gray-100 hover:bg-gray-100'}`}>신부</button>
+                   <button type="button" onClick={() => setNewAssignee('groom')} className={`flex-1 py-2 text-sm rounded-xl font-medium transition-colors ${newAssignee === 'groom' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-gray-50 text-gray-500 border border-gray-100 hover:bg-gray-100'}`}>신랑</button>
                  </div>
-              </div>
-              <div className="flex space-x-3">
+               </div>
+               <div className="flex space-x-3">
                  <button type="button" onClick={() => setIsAdding(false)} className="flex-1 py-3 text-gray-500 font-semibold bg-gray-100 rounded-xl">취소</button>
-                 <button type="submit" disabled={!newTitle.trim()} className="flex-1 py-3 text-white font-semibold bg-pink-500 disabled:opacity-50 rounded-xl">저장</button>
-              </div>
+                 <button type="submit" disabled={!newTitle.trim() || isSubmitting} className="flex-1 py-3 text-white font-semibold bg-pink-500 disabled:opacity-50 rounded-xl">{isSubmitting ? '진행중...' : '저장'}</button>
+               </div>
            </form>
          </div>
       )}
@@ -410,17 +452,26 @@ export default function ChecklistPage() {
                  </div>
                  <div className="flex-1">
                    <label className="text-xs font-semibold text-gray-500 mb-1 block">시간 (선택)</label>
-                   <input 
-                     type="time" 
-                     value={editDueTime} onChange={e => setEditDueTime(e.target.value)}
-                     className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm text-gray-700 font-medium"
-                   />
+                    <input 
+                      type="time" 
+                      value={editDueTime} onChange={e => setEditDueTime(e.target.value)}
+                      className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-pink-500 text-sm text-gray-700 font-medium"
+                    />
+                  </div>
+               </div>
+               {/* 담당자 지정 UI 추가 */}
+               <div className="mb-6">
+                 <label className="text-xs font-semibold text-gray-500 mb-2 block">담당자 지정</label>
+                 <div className="flex space-x-2">
+                   <button type="button" onClick={() => setEditAssignee('both')} className={`flex-1 py-2 text-sm rounded-xl font-medium transition-colors ${editAssignee === 'both' ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-gray-50 text-gray-500 border border-gray-100 hover:bg-gray-100'}`}>함께</button>
+                   <button type="button" onClick={() => setEditAssignee('bride')} className={`flex-1 py-2 text-sm rounded-xl font-medium transition-colors ${editAssignee === 'bride' ? 'bg-pink-100 text-pink-700 border border-pink-200' : 'bg-gray-50 text-gray-500 border border-gray-100 hover:bg-gray-100'}`}>신부</button>
+                   <button type="button" onClick={() => setEditAssignee('groom')} className={`flex-1 py-2 text-sm rounded-xl font-medium transition-colors ${editAssignee === 'groom' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-gray-50 text-gray-500 border border-gray-100 hover:bg-gray-100'}`}>신랑</button>
                  </div>
-              </div>
-              <div className="flex space-x-3">
+               </div>
+               <div className="flex space-x-3">
                  <button type="button" onClick={() => setEditingTodo(null)} className="flex-1 py-3 text-gray-500 font-semibold bg-gray-100 rounded-xl">취소</button>
-                 <button type="submit" disabled={!editTitle.trim()} className="flex-1 py-3 text-white font-semibold bg-pink-500 disabled:opacity-50 rounded-xl hover:bg-pink-600 transition-colors">저장</button>
-              </div>
+                 <button type="submit" disabled={!editTitle.trim() || isEditSubmitting} className="flex-1 py-3 text-white font-semibold bg-pink-500 disabled:opacity-50 rounded-xl hover:bg-pink-600 transition-colors">{isEditSubmitting ? '진행중...' : '저장'}</button>
+               </div>
            </form>
          </div>
       )}
